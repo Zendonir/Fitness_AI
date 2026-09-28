@@ -1,0 +1,132 @@
+"""Drei Planvorlagen: Ganzkörper 3x, Upper/Lower, Push/Pull/Legs."""
+
+# (slug, sets, rep_min, rep_max, rpe, rest, superset)
+PLANS = [
+    {
+        "name": "Ganzkörper 3x",
+        "description": "Einsteigerfreundlicher Ganzkörperplan für 3 Tage pro Woche (z. B. Mo/Mi/Fr). "
+        "Zwei alternierende Einheiten A/B, Double Progression.",
+        "weeks": 6,
+        "deload_weeks": [6],
+        "days": [
+            ("Ganzkörper A", 0, [
+                ("back_squat", 3, 6, 10, 8, 180, None),
+                ("bench_press", 3, 6, 10, 8, 150, None),
+                ("barbell_row", 3, 8, 12, 8, 120, None),
+                ("lateral_raise", 2, 12, 15, 9, 60, "a"),
+                ("triceps_pushdown", 2, 10, 15, 9, 60, "a"),
+                ("plank", 2, 30, 60, None, 60, None),
+            ]),
+            ("Ganzkörper B", 2, [
+                ("romanian_deadlift", 3, 6, 10, 8, 180, None),
+                ("overhead_press", 3, 6, 10, 8, 150, None),
+                ("lat_pulldown", 3, 8, 12, 8, 120, None),
+                ("leg_press", 2, 10, 15, 8, 120, None),
+                ("db_curl", 2, 10, 15, 9, 60, "a"),
+                ("face_pull", 2, 12, 20, 9, 60, "a"),
+            ]),
+            ("Ganzkörper A'", 4, [
+                ("goblet_squat", 3, 8, 12, 8, 120, None),
+                ("db_incline_press", 3, 8, 12, 8, 120, None),
+                ("seated_cable_row", 3, 8, 12, 8, 120, None),
+                ("hip_thrust", 3, 8, 12, 8, 120, None),
+                ("hanging_leg_raise", 2, 8, 15, 9, 60, None),
+            ]),
+        ],
+    },
+    {
+        "name": "Upper/Lower 4x",
+        "description": "Oberkörper/Unterkörper-Split für 4 Tage pro Woche. Kraft- und Hypertrophie-Tage.",
+        "weeks": 8,
+        "deload_weeks": [4, 8],
+        "days": [
+            ("Oberkörper Kraft", 0, [
+                ("bench_press", 4, 4, 6, 8, 180, None),
+                ("barbell_row", 4, 5, 8, 8, 150, None),
+                ("overhead_press", 3, 5, 8, 8, 150, None),
+                ("pull_up", 3, 5, 8, 8, 120, None),
+                ("skull_crusher", 2, 8, 12, 9, 60, "a"),
+                ("barbell_curl", 2, 8, 12, 9, 60, "a"),
+            ]),
+            ("Unterkörper Kraft", 1, [
+                ("back_squat", 4, 4, 6, 8, 210, None),
+                ("romanian_deadlift", 3, 6, 8, 8, 180, None),
+                ("leg_press", 3, 8, 12, 8, 120, None),
+                ("lying_leg_curl", 3, 8, 12, 9, 90, None),
+                ("standing_calf_raise", 3, 8, 12, 9, 60, None),
+            ]),
+            ("Oberkörper Volumen", 3, [
+                ("db_incline_press", 3, 8, 12, 8, 120, None),
+                ("seated_cable_row", 3, 10, 12, 8, 120, None),
+                ("db_shoulder_press", 3, 8, 12, 8, 120, None),
+                ("lat_pulldown", 3, 10, 12, 8, 90, None),
+                ("lateral_raise", 3, 12, 20, 9, 60, "a"),
+                ("face_pull", 3, 12, 20, 9, 60, "a"),
+                ("hammer_curl", 2, 10, 15, 9, 60, "b"),
+                ("overhead_triceps_extension", 2, 10, 15, 9, 60, "b"),
+            ]),
+            ("Unterkörper Volumen", 4, [
+                ("deadlift", 3, 4, 6, 8, 210, None),
+                ("bulgarian_split_squat", 3, 8, 12, 8, 120, None),
+                ("hip_thrust", 3, 8, 12, 8, 120, None),
+                ("leg_extension", 3, 10, 15, 9, 90, "a"),
+                ("seated_leg_curl", 3, 10, 15, 9, 90, "a"),
+                ("seated_calf_raise", 3, 12, 20, 9, 60, None),
+                ("cable_crunch", 3, 10, 15, 9, 60, None),
+            ]),
+        ],
+    },
+    {
+        "name": "Push/Pull/Legs 6x",
+        "description": "Klassischer PPL-Split, 2 Durchläufe pro Woche. Für Fortgeschrittene mit hoher Frequenz.",
+        "weeks": 6,
+        "deload_weeks": [6],
+        "days": [
+            ("Push", 0, [
+                ("bench_press", 4, 5, 8, 8, 180, None),
+                ("overhead_press", 3, 6, 10, 8, 150, None),
+                ("db_incline_press", 3, 8, 12, 8, 120, None),
+                ("lateral_raise", 3, 12, 20, 9, 60, None),
+                ("triceps_pushdown", 3, 10, 15, 9, 60, "a"),
+                ("overhead_triceps_extension", 2, 10, 15, 9, 60, "a"),
+            ]),
+            ("Pull", 1, [
+                ("deadlift", 3, 4, 6, 8, 210, None),
+                ("pull_up", 3, 6, 10, 8, 120, None),
+                ("barbell_row", 3, 6, 10, 8, 120, None),
+                ("face_pull", 3, 12, 20, 9, 60, None),
+                ("barbell_curl", 3, 8, 12, 9, 60, "a"),
+                ("hammer_curl", 2, 10, 15, 9, 60, "a"),
+            ]),
+            ("Legs", 2, [
+                ("back_squat", 4, 5, 8, 8, 210, None),
+                ("romanian_deadlift", 3, 6, 10, 8, 180, None),
+                ("leg_press", 3, 10, 15, 8, 120, None),
+                ("lying_leg_curl", 3, 10, 15, 9, 90, None),
+                ("standing_calf_raise", 4, 8, 15, 9, 60, None),
+            ]),
+            ("Push 2", 3, [
+                ("db_bench_press", 4, 8, 12, 8, 120, None),
+                ("machine_shoulder_press", 3, 8, 12, 8, 120, None),
+                ("cable_fly", 3, 12, 15, 9, 60, None),
+                ("cable_lateral_raise", 3, 12, 20, 9, 60, None),
+                ("dips", 3, 8, 12, 8, 90, None),
+            ]),
+            ("Pull 2", 4, [
+                ("lat_pulldown", 4, 8, 12, 8, 90, None),
+                ("seated_cable_row", 3, 8, 12, 8, 90, None),
+                ("db_row", 3, 8, 12, 8, 90, None),
+                ("rear_delt_fly", 3, 12, 20, 9, 60, None),
+                ("incline_db_curl", 3, 10, 15, 9, 60, None),
+            ]),
+            ("Legs 2", 5, [
+                ("front_squat", 3, 6, 10, 8, 180, None),
+                ("hip_thrust", 3, 8, 12, 8, 120, None),
+                ("bulgarian_split_squat", 3, 8, 12, 8, 120, None),
+                ("leg_extension", 3, 12, 15, 9, 60, "a"),
+                ("seated_leg_curl", 3, 12, 15, 9, 60, "a"),
+                ("hanging_leg_raise", 3, 8, 15, 9, 60, None),
+            ]),
+        ],
+    },
+]

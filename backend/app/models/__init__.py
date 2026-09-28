@@ -1,0 +1,57 @@
+from app.models.coach import (
+    AIUsage,
+    ChatConversation,
+    ChatMessage,
+    CoachHint,
+    CoachNote,
+    CoachProfile,
+    CoachSummary,
+    MealPlan,
+    PendingAction,
+    PromptTemplate,
+    UserAIKey,
+)
+from app.models.nutrition import (
+    NUTRIENT_KEYS,
+    BodyMeasurement,
+    Dashboard,
+    DayTemplate,
+    Favorite,
+    Food,
+    MealEntry,
+    MetricDefinition,
+    MetricEntry,
+    ProgressPhoto,
+    Recipe,
+    RecipeIngredient,
+    WaterEntry,
+)
+from app.models.training import CardioSession, Exercise, Plan, PlanDay, PlanExercise, Workout, WorkoutSet
+from app.models.user import (
+    ApiToken,
+    AppSetting,
+    AuditLog,
+    Invite,
+    PasswordReset,
+    PushSubscription,
+    Role,
+    Session,
+    ShareGrant,
+    TrainerComment,
+    TrainerLink,
+    User,
+    UserProfile,
+    UserSettings,
+    WebAuthnCredential,
+)
+
+__all__ = [
+    "AIUsage", "ApiToken", "AppSetting", "AuditLog", "BodyMeasurement", "CardioSession",
+    "ChatConversation", "ChatMessage", "CoachHint", "CoachNote", "CoachProfile", "CoachSummary",
+    "Dashboard", "DayTemplate", "Exercise", "Favorite", "Food", "Invite", "MealEntry", "MealPlan",
+    "MetricDefinition", "MetricEntry", "NUTRIENT_KEYS", "PasswordReset", "PendingAction", "Plan",
+    "PlanDay", "PlanExercise", "ProgressPhoto", "PromptTemplate", "PushSubscription", "Recipe",
+    "RecipeIngredient", "Role", "Session", "ShareGrant", "TrainerComment", "TrainerLink", "User",
+    "UserAIKey", "UserProfile", "UserSettings", "WaterEntry", "WebAuthnCredential", "Workout",
+    "WorkoutSet",
+]
