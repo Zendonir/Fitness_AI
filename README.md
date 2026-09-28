@@ -100,7 +100,7 @@ Getestet mit TrueNAS Scale ab 24.10 („Electric Eel“), der Apps auf Docker-Co
 
 ### 2.3 App installieren
 
-**Variante A: Custom App per YAML (empfohlen)**
+**Variante A: Custom App per YAML (empfohlen)** – fertige Vorlage: [`truenas/fitforge-truenas.yaml`](truenas/fitforge-truenas.yaml), nur die mit `ANPASSEN` markierten Werte ändern.
 
 1. *Apps → Discover Apps → ⋮ → Install via YAML*.
 2. Name: `fitforge`.
