@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.app_settings import get_user_settings
 from app.services.meals import build_meal_entry, day_summary, recent_foods, recipe_nutrition
+from app.services.food_search import search_local
 from app.services.off import lookup_barcode, search_off
 
 router = APIRouter(tags=["nutrition"])
@@ -50,14 +51,10 @@ class FoodIn(BaseModel):
 
 @router.get("/foods/search")
 async def search_foods(user: CurrentUser, db: DB, q: str = Query(min_length=2), online: bool = True) -> dict[str, Any]:
-    local = (
-        await db.exec(
-            select(Food).where(readable_clause(Food, "food", user.id), col(Food.name).ilike(f"%{q}%"))
-            .order_by(col(Food.owner_id).is_(None), Food.name).limit(30)
-        )
-    ).all()
+    """Reihenfolge: eigene Lebensmittel → BLS (Gerichte & Grundnahrungsmittel) → Open Food Facts (Markenprodukte)."""
+    local = await search_local(db, user.id, q)
     results = [food_out(f, user.id) for f in local]
-    if online and len(local) < 10:
+    if online and len([f for f in local if f.source != "off"]) < 8:
         seen = {f.id for f in local}
         results += [food_out(f, user.id) for f in await search_off(db, q) if f.id not in seen]
     return {"results": results}

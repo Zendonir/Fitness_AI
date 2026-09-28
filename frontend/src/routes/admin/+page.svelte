@@ -8,12 +8,13 @@
   import Icon from '$components/Icon.svelte';
   import Sheet from '$components/Sheet.svelte';
 
-  const TABS = { users: 'Benutzer', invites: 'Einladungen', settings: 'Einstellungen', costs: 'KI-Kosten', prompt: 'Systemprompt', audit: 'Audit-Log', system: 'Speicher & Backups' };
+  const TABS = { users: 'Benutzer', invites: 'Einladungen', settings: 'Einstellungen', costs: 'KI-Kosten', foods: 'Lebensmittel-DB', prompt: 'Systemprompt', audit: 'Audit-Log', system: 'Speicher & Backups' };
   let tab = $state('users');
   let users = $state([]), invites = $state([]), settings = $state(null), usage = $state([]), audit = $state([]), prompts = $state([]), storage = $state(null), backups = $state([]);
   let editUser = $state(null), newUser = $state(null), inviteForm = $state({ email: '', role: 'user', days: 7 }), lastLink = $state('');
   let promptDraft = $state(''), promptComment = $state(''), keyForm = $state({ anthropic_api_key: '', openai_api_key: '' });
   let defaultsJson = $state('');
+  let foodDb = $state(null), importing = $state(false);
 
   $effect(() => { const t = tab; if (isAdmin()) load(t); });
   async function load(t) {
@@ -24,6 +25,7 @@
       if (t === 'costs') usage = (await api.get('/api/admin/ai-usage')).rows;
       if (t === 'audit') audit = await api.get('/api/admin/audit?limit=200');
       if (t === 'prompt') { prompts = await api.get('/api/admin/prompts'); promptDraft = prompts.find((p) => p.is_active)?.content || ''; }
+      if (t === 'foods') foodDb = await api.get('/api/admin/food-db');
       if (t === 'system') { storage = await api.get('/api/admin/storage'); backups = await api.get('/api/admin/backups'); }
     } catch (e) { toastError(e); }
   }
@@ -43,6 +45,23 @@
   async function saveDefaults() { try { await patchSettings({ user_defaults: JSON.parse(defaultsJson || '{}') }); } catch (e) { toastError(e); } }
   async function savePrompt() { await api.post('/api/admin/prompts', { content: promptDraft, comment: promptComment }); promptComment = ''; load('prompt'); toast('Neue Version aktiv', 'success'); }
   async function activatePrompt(p) { await api.post(`/api/admin/prompts/${p.id}/activate`); load('prompt'); }
+  async function blsImport() {
+    importing = true;
+    try {
+      const r = await api.post('/api/admin/food-db/bls/import');
+      toast(r.queued ? 'Import läuft im Hintergrund (1–2 Minuten)' : `${r.count} Lebensmittel importiert`, 'success');
+      setTimeout(() => load('foods'), r.queued ? 60000 : 0);
+    } catch (e) { toastError(e); } finally { importing = false; }
+  }
+  async function blsUpload(e) {
+    const input = e.currentTarget;
+    const f = input.files?.[0];
+    if (!f) return;
+    importing = true;
+    const fd = new FormData(); fd.append('file', f);
+    try { const r = await api.upload('/api/admin/food-db/bls/upload', fd); toast(`${r.count} Lebensmittel importiert`, 'success'); load('foods'); }
+    catch (err) { toastError(err); } finally { importing = false; input.value = ''; }
+  }
   async function backupNow() { const r = await api.post('/api/admin/backups'); toast(r.queued ? 'Backup gestartet' : r.ok ? `Backup ${r.file} erstellt` : `Fehler: ${r.error}`); setTimeout(() => load('system'), 3000); }
 
   const costByUser = $derived.by(() => {
@@ -129,6 +148,27 @@
         <div class="list-row text-sm"><div class="flex-1">{r.user} · {r.provider}<div class="text-xs text-muted">{r.month} · {r.requests} Anfragen · {(r.input_tokens / 1000).toFixed(1)}k / {(r.output_tokens / 1000).toFixed(1)}k Tokens{r.errors ? ` · ${r.errors} Fehler` : ''}</div></div>
           <span class="font-semibold tabular-nums">{r.cost_usd.toFixed(3)} $</span></div>
       {:else}<p class="p-4 text-sm text-muted">Noch keine KI-Nutzung</p>{/each}
+    </div>
+
+  {:else if tab === 'foods' && foodDb}
+    <div class="space-y-3">
+      <div class="card space-y-1">
+        <div class="font-semibold">Bundeslebensmittelschlüssel (BLS 4.0)</div>
+        <p class="text-sm text-muted">Deutsche Nährstoffdatenbank mit ca. 7.100 Lebensmitteln und Gerichten (Döner, Gyros, Pizza, Brötchen …).
+          Wird beim ersten Start automatisch geladen.</p>
+        <p class="text-sm">{foodDb.bls.count ? `✓ ${foodDb.bls.count} Einträge · importiert ${fmtDate(foodDb.bls.imported_at, { day: '2-digit', month: '2-digit', year: 'numeric' })}` : 'Noch nicht importiert'}</p>
+        {#if foodDb.bls.error}<p class="rounded-xl bg-danger/10 p-2 text-sm text-danger">{foodDb.bls.error}</p>{/if}
+        <p class="text-[11px] text-muted">{foodDb.bls.attribution}</p>
+      </div>
+      <button class="btn-primary w-full" disabled={importing} onclick={blsImport}><Icon name="download" size={18} /> {foodDb.bls.count ? 'Aktualisieren (Download)' : 'Jetzt herunterladen & importieren'}</button>
+      <label class="btn-soft w-full"><Icon name="share" size={18} /> BLS-Datei hochladen (.xlsx/.csv)
+        <input type="file" accept=".xlsx,.csv" class="hidden" onchange={blsUpload} disabled={importing} /></label>
+      <p class="text-xs text-muted">Falls der Download aus deinem Netz nicht klappt: Datei „BLS_4_0_Daten_2025_DE.xlsx“ unter blsdb.de → Download herunterladen und hier hochladen.</p>
+      <div class="card p-0">
+        {#each Object.entries(foodDb.counts) as [src, n]}
+          <div class="list-row text-sm"><span class="flex-1">{({ bls: 'BLS (Gerichte & Grundnahrungsmittel)', off: 'Open Food Facts (Cache)', seed: 'Vorlagen', custom: 'Global angelegt' })[src] || src}</span><span class="text-muted">{n}</span></div>
+        {/each}
+      </div>
     </div>
 
   {:else if tab === 'prompt'}

@@ -15,7 +15,7 @@ from sqlmodel import select
 from app.core import db as dbmod
 from app.core.config import settings
 from app.models import User
-from app.services.app_settings import get_user_settings, system_flags
+from app.services.app_settings import get_app_setting, get_user_settings, system_flags
 
 log = logging.getLogger("fitforge.worker")
 TZ = ZoneInfo(settings.tz)
@@ -133,15 +133,27 @@ async def cleanup_job(ctx: dict) -> None:
         await db.commit()
 
 
+async def bls_import_job(ctx: dict) -> dict:
+    from app.services.bls import import_bls
+
+    async with dbmod.session_scope() as db:
+        return await import_bls(db)
+
+
 async def startup(ctx: dict) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     async with dbmod.session_scope() as db:
         flags = await system_flags(db)
+        bls = await get_app_setting(db, "food_db_bls", {})
     log.info("Worker gestartet (KI %s)", "aktiv" if flags["ai_enabled"] else "aus")
+    # Lebensmitteldatenbank (BLS) beim ersten Start automatisch laden
+    if settings.bls_auto_import and not bls.get("count") and not bls.get("error"):
+        await ctx["redis"].enqueue_job("bls_import_job", _job_id="bls-import", _defer_by=5)
+        log.info("BLS-Import eingeplant")
 
 
 class WorkerSettings:
-    functions = [timer_push_job, backup_job, daily_summaries_job, weekly_reports_job, hints_job, briefings_job]
+    functions = [bls_import_job, timer_push_job, backup_job, daily_summaries_job, weekly_reports_job, hints_job, briefings_job]
     cron_jobs = [
         cron(briefings_job, minute=set(range(0, 60, 5)), run_at_startup=False),
         cron(daily_summaries_job, hour={2}, minute={30}),
@@ -155,4 +167,4 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     timezone = TZ
     max_jobs = 4
-    job_timeout = 900
+    job_timeout = 1800

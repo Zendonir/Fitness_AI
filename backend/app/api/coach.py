@@ -485,6 +485,31 @@ async def _vision(db: DB, user: CurrentUser, file: UploadFile, prompt: str, note
         raise _ai_error(e) from e
 
 
+ESTIMATE_PROMPT = """Schätze die Nährwerte für folgende Mahlzeit, wie sie in Deutschland typischerweise zubereitet wird
+(übliche Portionsgröße, sofern keine Menge genannt ist). Zerlege sie, falls sinnvoll, in Bestandteile.
+Antworte NUR mit JSON: {"items":[{"name":"…","grams":Zahl,"kcal":Zahl,"protein":Zahl,"carbs":Zahl,"fat":Zahl,"fiber":Zahl,
+"confidence":"hoch|mittel|niedrig"}],"note":"kurzer Hinweis zur Schätzung"}. Nährwerte absolut für die Menge.
+
+Mahlzeit: """
+
+
+class EstimateIn(BaseModel):
+    text: str = Field(min_length=2, max_length=500)
+
+
+@router.post("/estimate-food")
+async def estimate_food(body: EstimateIn, user: CurrentUser, db: DB) -> dict[str, Any]:
+    """Nährwerte für ein Gericht per KI schätzen (wenn es in keiner Datenbank steht)."""
+    try:
+        res = await run_llm(db, user, "vision", "Du bist ein präziser Ernährungsassistent. Antworte ausschließlich mit JSON.",
+                            [Message("user", ESTIMATE_PROMPT + body.text)], max_tokens=1500, json_mode=True)
+        return {"result": parse_json(res.text), "provider": res.provider, "model": res.model}
+    except ValueError as e:
+        raise HTTPException(422, "Die KI-Antwort konnte nicht gelesen werden – bitte erneut versuchen") from e
+    except (AIDisabledError, AILimitError, ProviderError) as e:
+        raise _ai_error(e) from e
+
+
 @router.post("/vision/meal")
 async def vision_meal(user: CurrentUser, db: DB, file: UploadFile = File(...), note: str = Form("")) -> dict[str, Any]:
     return await _vision(db, user, file, VISION_MEAL, note)

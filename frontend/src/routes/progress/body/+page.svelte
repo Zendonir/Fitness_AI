@@ -38,11 +38,12 @@
   }
   async function del(e) { if (confirm('Messung löschen?')) { await api.del(`/api/body/${e.id}`); load(); } }
   async function upload(ev) {
-    const f = ev.currentTarget.files?.[0];
+    const input = ev.currentTarget;
+    const f = input.files?.[0];
     if (!f) return;
     const fd = new FormData(); fd.append('file', f); fd.append('pose', pose); fd.append('day', today());
     try { await api.upload('/api/photos', fd); toast('Foto gespeichert (nur lokal auf deinem Server)', 'success'); load(); } catch (e) { toastError(e); }
-    ev.currentTarget.value = '';
+    input.value = '';
   }
   async function delPhoto(p) { if (confirm('Foto löschen?')) { await api.del(`/api/photos/${p.id}`); load(); } }
   const posePhotos = $derived(photos.filter((p) => p.pose === pose));

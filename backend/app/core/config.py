@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     backup_hour: int = 3
 
     open_food_facts_url: str = "https://world.openfoodfacts.org"
+    bls_auto_import: bool = True  # Bundeslebensmittelschlüssel beim ersten Start herunterladen
     off_user_agent: str = "FitForge/1.0 (self-hosted)"
 
     @property

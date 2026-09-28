@@ -29,7 +29,8 @@
     await api.del(`/api/foods/${form.id}`); form = null; load();
   }
   async function label(e) {
-    const f = e.currentTarget.files?.[0];
+    const input = e.currentTarget;
+    const f = input.files?.[0];
     if (!f) return;
     busy = true;
     const fd = new FormData(); fd.append('file', f);
@@ -37,7 +38,7 @@
       const r = (await api.upload('/api/coach/vision/label', fd)).result;
       form = { ...empty(), ...Object.fromEntries(Object.entries(r).filter(([, v]) => v !== null)), source: 'label' };
       toast('Etikett erkannt – bitte prüfen', 'success');
-    } catch (err) { toastError(err); } finally { busy = false; e.currentTarget.value = ''; }
+    } catch (err) { toastError(err); } finally { busy = false; input.value = ''; }
   }
 </script>
 

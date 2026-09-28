@@ -12,9 +12,11 @@ class Food(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     owner_id: int | None = Field(default=None, foreign_key="user.id", index=True, ondelete="CASCADE")
     barcode: str | None = Field(default=None, index=True)
+    external_id: str | None = Field(default=None, index=True, max_length=64)  # z. B. "bls:Y921162"
     name: str = Field(index=True)
     brand: str = ""
-    source: str = "custom"  # off|custom|label|seed
+    category: str = ""
+    source: str = "custom"  # off|custom|label|bls
     # Nährwerte pro 100 g
     kcal: float = 0
     protein: float = 0

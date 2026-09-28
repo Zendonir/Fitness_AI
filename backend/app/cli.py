@@ -4,6 +4,7 @@
     python -m app.cli create-admin EMAIL PASSWORT    # Admin anlegen (oder bestehenden Benutzer zum Admin machen)
     python -m app.cli reset-link EMAIL               # Passwort-Reset-Link ausgeben
     python -m app.cli init-secrets DIR               # fehlende Schlüssel einmalig in DIR erzeugen (Docker-Init)
+    python -m app.cli import-bls [DATEI]             # Bundeslebensmittelschlüssel importieren (ohne Datei: Download)
 """
 
 import asyncio
@@ -99,6 +100,17 @@ async def reset_link(email: str) -> None:
         print(await _reset_link(db, user))
 
 
+async def import_bls_cmd(path: str | None) -> None:
+    from pathlib import Path
+
+    from app.core.db import session_scope
+    from app.services.bls import import_bls
+
+    async with session_scope() as db:
+        status = await import_bls(db, path=Path(path) if path else None)
+    print(f"BLS importiert: {status['created']} neu, {status['updated']} aktualisiert")
+
+
 def main() -> None:
     args = sys.argv[1:]
     if not args or args[0] in ("-h", "--help"):
@@ -107,6 +119,8 @@ def main() -> None:
         gen_keys()
     elif args[0] == "init-secrets" and len(args) == 2:
         init_secrets(args[1])
+    elif args[0] == "import-bls" and len(args) in (1, 2):
+        asyncio.run(import_bls_cmd(args[1] if len(args) == 2 else None))
     elif args[0] == "create-admin" and len(args) == 3:
         asyncio.run(create_admin(args[1], args[2]))
     elif args[0] == "reset-link" and len(args) == 2:

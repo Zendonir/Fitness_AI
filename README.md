@@ -4,7 +4,7 @@
 Läuft als Custom App auf TrueNAS Scale und als PWA auf dem iPhone/iPad (sekundär am Desktop).
 
 - **Training:** 82 Übungen mit Muskel-Grafik, 3 Planvorlagen (Ganzkörper 3×, Upper/Lower 4×, PPL 6×), Plan-Editor mit Drag & Drop, Deload-Wochen, Live-Workout mit Pausen-Timer, Supersätzen und Vorwerten, Double Progression, PR-Erkennung, Ausdauer mit GPX/CSV-Import
-- **Ernährung:** Open-Food-Facts-Suche mit lokalem Cache, Barcode-Scanner (iPhone-Kamera), eigene Lebensmittel und Rezepte, Mahlzeiten-Slots, „Vortag kopieren“, Favoriten, Vorlagen-Tage, Wasser, Makroziele nach Mifflin-St-Jeor mit festen Untergrenzen
+- **Ernährung:** Bundeslebensmittelschlüssel (BLS 4.0, ca. 7.100 Lebensmittel und Gerichte wie Döner, Gyros, Pizza) plus Open Food Facts für Markenprodukte, KI-Schätzung für alles Übrige, Barcode-Scanner (iPhone-Kamera), eigene Lebensmittel und Rezepte, Mahlzeiten-Slots, „Vortag kopieren“, Favoriten, Vorlagen-Tage, Wasser, Makroziele nach Mifflin-St-Jeor mit festen Untergrenzen
 - **Visualisierung:** „Heute“-Dashboard als Baukasten (mehrere Dashboards), Muskel-Heatmap, 1RM-Verlauf, Kalender-Heatmap, Wochenvolumen, Ernährungsauswertung, Korrelationen, Wochen- und Monatsberichte, Export als PNG/CSV
 - **KI-Coach:** Anthropic (Claude), OpenAI und Ollama mit Fallback, Kostenlimit, Gedächtnis, Tool-Calling mit Bestätigungsdialog, proaktive Hinweise, Briefings, Web-Push, Foto-Erkennung, Mahlzeitenplanung – und komplett abschaltbar
 - **Mehrbenutzer:** Rollen Admin, Benutzer und Trainer, Einladungslinks, Passkeys, TOTP-2FA, optional OIDC (z. B. Authentik), strikte Datentrennung, Teilen, Export/Import, Konto löschen
@@ -369,6 +369,23 @@ Fotos stellst du bei Bedarf aus dem Snapshot von `uploads/` wieder her.
 Wichtig: Stelle auch den Ordner bzw. das Volume `secrets/` wieder her, oder nutze dieselben `SECRET_KEY` und `FERNET_KEY` wie beim Backup.
 
 **Benutzer-Export:** Jeder Benutzer kann unter *Einstellungen → Daten & Konto* alle Daten als JSON oder als CSV-ZIP exportieren und in eine andere FitForge-Instanz importieren.
+
+---
+
+## Lebensmitteldatenbanken
+
+| Quelle | Inhalt | Einbindung |
+|---|---|---|
+| **Bundeslebensmittelschlüssel (BLS) 4.0** | ca. 7.100 generische Lebensmittel und Gerichte (z. B. Döner Kebab, Gyros, Lahmacun, Pizza, Brötchen, Obst, Gemüse) mit bis zu 138 Nährstoffen | Wird beim ersten Start vom Worker automatisch von blsdb.de geladen (ca. 1–2 Minuten). Alternativ: *Administration → Lebensmittel-DB → Datei hochladen* oder `docker exec fitforge-app python -m app.cli import-bls` |
+| **Open Food Facts** | Markenprodukte mit Barcode | Online-Suche und Barcode-Scan, Ergebnisse werden lokal zwischengespeichert |
+| **KI-Schätzung** | alles, was in keiner Datenbank steht | Bei der Suche „… vom Coach schätzen lassen“; die Werte kannst du vor dem Loggen korrigieren |
+
+Die Suche zeigt zuerst deine eigenen Lebensmittel, dann BLS-Einträge und danach Markenprodukte.
+Sie findet mehrere Wörter („döner geflügel“) und Umlaut-Schreibweisen („doener“).
+Für Gerichte schlägt die App typische Portionen vor, z. B. „1 Döner (380 g)“.
+Den automatischen Download schaltest du mit `BLS_AUTO_IMPORT=false` ab.
+
+Quellenangabe: *Bundeslebensmittelschlüssel (BLS), Version 4.0, Max Rubner-Institut, Lizenz CC BY 4.0* · *Open Food Facts, ODbL*.
 
 ---
 

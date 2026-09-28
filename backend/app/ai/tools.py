@@ -318,11 +318,13 @@ async def execute_tool(ctx: ToolContext, call: ToolCall) -> str:
 
     if name == "search_foods":
         q = str(a.get("query", ""))
-        foods = (await db.exec(select(Food).where(readable_clause(Food, "food", uid), col(Food.name).ilike(f"%{q}%")).limit(10))).all()
+        from app.services.food_search import search_local
+
+        foods = await search_local(db, uid, q, limit=10)
         recipes = (await db.exec(select(Recipe).where(readable_clause(Recipe, "recipe", uid), col(Recipe.name).ilike(f"%{q}%")).limit(5))).all()
         return _dump({
-            "foods_per_100g": [{"food_id": f.id, "name": f.name, "brand": f.brand, "kcal": f.kcal, "protein": f.protein,
-                                "carbs": f.carbs, "fat": f.fat, "serving_g": f.serving_g} for f in foods],
+            "foods_per_100g": [{"food_id": f.id, "name": f.name, "brand": f.brand, "source": f.source, "kcal": f.kcal,
+                                "protein": f.protein, "carbs": f.carbs, "fat": f.fat, "serving_g": f.serving_g} for f in foods],
             "recipes_per_serving": [{"recipe_id": r.id, "name": r.name, **(await recipe_nutrition(db, r))["per_serving"]} for r in recipes],
         })
 

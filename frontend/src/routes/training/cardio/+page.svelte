@@ -33,7 +33,8 @@
     } catch (e) { toastError(e); }
   }
   async function importFile(e) {
-    const f = e.currentTarget.files?.[0];
+    const input = e.currentTarget;
+    const f = input.files?.[0];
     if (!f) return;
     const fd = new FormData();
     fd.append('file', f);
@@ -41,7 +42,7 @@
       const r = await api.upload('/api/cardio/import', fd);
       toast(`${r.imported} importiert${r.skipped ? `, ${r.skipped} Duplikate übersprungen` : ''}`, 'success');
       load();
-    } catch (err) { toastError(err); } finally { e.currentTarget.value = ''; }
+    } catch (err) { toastError(err); } finally { input.value = ''; }
   }
   async function del(c) {
     if (!confirm('Einheit löschen?')) return;

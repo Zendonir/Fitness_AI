@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlmodel import func, select
@@ -379,3 +379,50 @@ async def backup_now(admin: AdminUser, db: DB) -> dict[str, Any]:
     result = await enqueue_or_run_backup()
     await audit(db, "backup_triggered", actor_id=admin.id)
     return result
+
+
+# ---------------------------------------------------------------- Lebensmitteldatenbank (BLS)
+@router.get("/food-db")
+async def food_db_status(admin: AdminUser, db: DB) -> dict[str, Any]:
+    from app.models import Food
+    from app.services.bls import bls_status
+
+    counts = dict((await db.exec(select(Food.source, func.count()).where(Food.owner_id.is_(None)).group_by(Food.source))).all())
+    return {"bls": await bls_status(db), "counts": counts}
+
+
+@router.post("/food-db/bls/import")
+async def food_db_import(admin: AdminUser, db: DB) -> dict[str, Any]:
+    """BLS herunterladen und importieren (im Worker, sonst direkt)."""
+    try:
+        from arq import create_pool
+        from arq.connections import RedisSettings
+
+        pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+        job = await pool.enqueue_job("bls_import_job", _job_id="bls-import")
+        await pool.aclose()
+        await audit(db, "food_db_import", actor_id=admin.id)
+        return {"queued": True, "job_id": job.job_id if job else "bls-import"}
+    except Exception:  # noqa: BLE001 - kein Redis → direkt importieren
+        from app.services.bls import BLSImportError, import_bls
+
+        try:
+            return await import_bls(db)
+        except BLSImportError as e:
+            raise HTTPException(502, str(e)) from e
+
+
+@router.post("/food-db/bls/upload")
+async def food_db_upload(admin: AdminUser, db: DB, file: UploadFile = File(...)) -> dict[str, Any]:
+    """BLS-Datei (xlsx oder csv von blsdb.de) hochladen und importieren."""
+    from app.services.bls import BLSImportError, import_bls
+
+    target = settings.data_dir / "food-db" / f"upload_{(file.filename or 'bls.xlsx').replace('/', '_')}"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(await file.read())
+    try:
+        status = await import_bls(db, path=target)
+    except BLSImportError as e:
+        raise HTTPException(422, str(e)) from e
+    await audit(db, "food_db_upload", actor_id=admin.id, details={"count": status["count"]})
+    return status

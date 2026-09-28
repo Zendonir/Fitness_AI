@@ -103,18 +103,33 @@
   function stopScan() { try { controls?.stop(); } catch {} controls = null; }
   $effect(() => { if (tab === 'scan' && video) startScan(); else stopScan(); });
 
+  const SRC = { own: { label: 'EIGEN', cls: 'bg-accent/20 text-accent' }, bls: { label: 'BLS', cls: 'bg-protein/20 text-protein' },
+    off: { label: 'PRODUKT', cls: 'bg-surface-2' }, other: { label: 'GETEILT', cls: 'bg-surface-2' } };
+  const srcKey = (f) => (f.own ? 'own' : f.source === 'bls' ? 'bls' : f.source === 'off' ? 'off' : 'other');
+  let estimating = $state(false), estimateFor = $state('');
+
+  // ---- KI-Schätzung aus Text (für Gerichte, die in keiner Datenbank stehen)
+  async function estimate(text) {
+    estimating = true; photoItems = null;
+    try {
+      photoItems = (await api.post('/api/coach/estimate-food', { text })).result.items || [];
+      estimateFor = text;
+    } catch (e) { toastError(e); } finally { estimating = false; }
+  }
+
   // ---- Foto-Erkennung
   async function photo(e) {
-    const f = e.currentTarget.files?.[0];
+    const input = e.currentTarget;
+    const f = input.files?.[0];
     if (!f) return;
-    photoBusy = true; photoItems = null;
+    photoBusy = true; photoItems = null; estimateFor = '';
     const fd = new FormData(); fd.append('file', f); fd.append('note', photoNote);
-    try { photoItems = (await api.upload('/api/coach/vision/meal', fd)).result.items || []; } catch (err) { toastError(err); } finally { photoBusy = false; e.currentTarget.value = ''; }
+    try { photoItems = (await api.upload('/api/coach/vision/meal', fd)).result.items || []; } catch (err) { toastError(err); } finally { photoBusy = false; input.value = ''; }
   }
   async function logPhoto() {
     try {
       await api.post('/api/meals/batch', photoItems.map((i) => ({ day, slot, name: i.name, grams: Number(i.grams) || 0, kcal: Number(i.kcal) || 0,
-        protein: Number(i.protein) || 0, carbs: Number(i.carbs) || 0, fat: Number(i.fat) || 0, fiber: Number(i.fiber) || 0, source: 'photo' })));
+        protein: Number(i.protein) || 0, carbs: Number(i.carbs) || 0, fat: Number(i.fat) || 0, fiber: Number(i.fiber) || 0, source: estimateFor ? 'coach' : 'photo' })));
       success(); toast(`${photoItems.length} Einträge geloggt`, 'success');
       goto(`/nutrition?day=${day}`);
     } catch (e) { toastError(e); }
@@ -140,13 +155,21 @@
     <div class="card p-0">
       {#each results as f (f.id)}
         <button class="list-row w-full text-left" onclick={() => choose(f)}>
-          <div class="min-w-0 flex-1"><div class="truncate text-sm font-medium">{f.name}</div><div class="truncate text-xs text-muted">{f.brand || (f.own ? 'Eigenes' : '')} · pro 100 g: {fmtNum(f.protein, 0)} P · {fmtNum(f.carbs, 0)} K · {fmtNum(f.fat, 0)} F</div></div>
+          <div class="min-w-0 flex-1"><div class="line-clamp-2 text-sm font-medium">{f.name}</div>
+            <div class="truncate text-xs text-muted"><span class="mr-1 rounded px-1 py-px text-[10px] font-semibold {SRC[srcKey(f)].cls}">{SRC[srcKey(f)].label}</span>{f.brand || f.category || ''} · {fmtNum(f.protein, 0)} P · {fmtNum(f.carbs, 0)} K · {fmtNum(f.fat, 0)} F /100 g</div></div>
           <span class="text-sm tabular-nums">{fmtNum(energy(f.kcal), 0)}</span>
         </button>
       {:else}
-        {#if q.length >= 2 && !searching}<Empty icon="search" title="Nichts gefunden" text="Barcode scannen oder manuell eintragen." />{/if}
+        {#if q.length >= 2 && !searching}<Empty icon="search" title="Nichts gefunden" text="Lass den Coach die Nährwerte schätzen, scanne den Barcode oder trage manuell ein." />{/if}
       {/each}
     </div>
+    {#if q.length >= 2 && !searching}
+      <button class="btn-soft mt-3 w-full" disabled={estimating} onclick={() => estimate(q)}>
+        <Icon name="sparkles" size={18} class="text-accent" /> {estimating ? 'Coach schätzt …' : `„${q}“ vom Coach schätzen lassen`}</button>
+      {#if photoItems && estimateFor}{@render aiItemsBlock()}{/if}
+    {/if}
+    <p class="mt-4 text-center text-[10px] leading-snug text-muted">Gerichte & Grundnahrungsmittel: Bundeslebensmittelschlüssel (BLS) 4.0, Max Rubner-Institut, CC BY 4.0 ·
+      Markenprodukte: Open Food Facts (ODbL)</p>
   {:else if tab === 'fav' || tab === 'recent'}
     {@const list = tab === 'fav' ? favorites.map((f) => f.food || (f.recipe && { ...f.recipe, _recipe: true })).filter(Boolean) : recent}
     <div class="card p-0">
@@ -180,7 +203,24 @@
       <label class="btn-primary w-full"><Icon name="camera" /> {photoBusy ? 'Analysiere …' : 'Foto aufnehmen'}
         <input type="file" accept="image/*" capture="environment" class="hidden" onchange={photo} disabled={photoBusy} /></label>
     </div>
-    {#if photoItems}
+    {#if photoItems && !estimateFor}{@render aiItemsBlock()}{/if}
+  {:else if tab === 'manual'}
+    <div class="card space-y-3">
+      <input class="input" placeholder="Bezeichnung" bind:value={manual.name} />
+      <div class="grid grid-cols-2 gap-2">
+        {#each [['kcal', 'kcal'], ['grams', 'Menge (g)'], ['protein', 'Protein (g)'], ['carbs', 'Kohlenhydrate (g)'], ['fat', 'Fett (g)']] as [k, l]}
+          <label><span class="label">{l}</span><input class="input" inputmode="decimal" bind:value={manual[k]} /></label>
+        {/each}
+      </div>
+      <button class="btn-primary w-full" disabled={!manual.name} onclick={logManual}>Loggen</button>
+      <button class="btn-soft w-full" disabled={!manual.name || estimating} onclick={() => estimate(manual.name)}>
+        <Icon name="sparkles" size={18} class="text-accent" /> {estimating ? 'Coach schätzt …' : 'Nährwerte vom Coach schätzen lassen'}</button>
+    </div>
+    {#if photoItems && estimateFor}{@render aiItemsBlock()}{/if}
+  {/if}
+</div>
+
+{#snippet aiItemsBlock()}
       <div class="card mt-3 space-y-2">
         {#each photoItems as it, i}
           <div class="rounded-xl bg-surface-2 p-2">
@@ -195,30 +235,18 @@
         {/each}
         <button class="btn-primary w-full" disabled={!photoItems.length} onclick={logPhoto}>Alle loggen ({fmtNum(photoItems.reduce((a, i) => a + Number(i.kcal || 0), 0), 0)} kcal)</button>
       </div>
-    {/if}
-  {:else if tab === 'manual'}
-    <div class="card space-y-3">
-      <input class="input" placeholder="Bezeichnung" bind:value={manual.name} />
-      <div class="grid grid-cols-2 gap-2">
-        {#each [['kcal', 'kcal'], ['grams', 'Menge (g)'], ['protein', 'Protein (g)'], ['carbs', 'Kohlenhydrate (g)'], ['fat', 'Fett (g)']] as [k, l]}
-          <label><span class="label">{l}</span><input class="input" inputmode="decimal" bind:value={manual[k]} /></label>
-        {/each}
-      </div>
-      <button class="btn-primary w-full" disabled={!manual.name} onclick={logManual}>Loggen</button>
-    </div>
-  {/if}
-</div>
+    {/snippet}
 
 <Sheet open={!!pick} title={pick?.food?.name || pick?.recipe?.name || ''} onclose={() => (pick = null)}>
   {#if pick}
     <div class="space-y-4">
       {#if pick.food}
-        <p class="text-sm text-muted">{pick.food.brand}</p>
+        <p class="text-sm text-muted">{pick.food.brand || pick.food.category}{pick.food.source === 'bls' ? ' · Quelle: BLS 4.0' : ''}</p>
         <div class="flex items-end gap-2">
           <label class="flex-1"><span class="label">Menge (g)</span><input class="input text-2xl font-bold" inputmode="decimal" type="number" bind:value={pick.grams} /></label>
         </div>
         <div class="flex flex-wrap gap-1">
-          {#if pick.food.serving_g}<button class="chip" onclick={() => (pick.grams = pick.food.serving_g)}>1 Portion ({pick.food.serving_g} g)</button>{/if}
+          {#if pick.food.serving_g}<button class="chip-active" onclick={() => (pick.grams = pick.food.serving_g)}>{pick.food.serving_label || '1 Portion'} ({pick.food.serving_g} g)</button>{/if}
           {#each [50, 100, 150, 200, 250] as g}<button class="chip" onclick={() => (pick.grams = g)}>{g} g</button>{/each}
         </div>
       {:else}
