@@ -35,6 +35,7 @@ class ExerciseIn(BaseModel):
     primary_muscles: list[str] = []
     secondary_muscles: list[str] = []
     instructions: str = ""
+    media_id: str | None = Field(None, max_length=160, pattern=r"^[a-z0-9-]+/[a-z0-9-]+$")
     custom_fields: list[dict[str, Any]] = []
     progression: dict[str, Any] = {}
 

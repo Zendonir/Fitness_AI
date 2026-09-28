@@ -13,9 +13,12 @@
   import Sheet from '$components/Sheet.svelte';
   import ShareSheet from '$components/ShareSheet.svelte';
   import Skeleton from '$components/Skeleton.svelte';
+  import ExerciseMedia from '$components/ExerciseMedia.svelte';
+  import MediaLibrary from '$components/MediaLibrary.svelte';
+  import { mediaEnabled } from '$lib/media.js';
 
   let ex = $state(null), stats = $state(null), days = $state(365);
-  let editOpen = $state(false), shareOpen = $state(false);
+  let editOpen = $state(false), shareOpen = $state(false), libOpen = $state(false);
   let newField = $state({ label: '', type: 'text' });
 
   onMount(async () => {
@@ -68,6 +71,11 @@
 
 <div class="space-y-3 px-4">
   {#if !ex}<Skeleton lines={3} h="h-40" />{:else}
+    {#if ex.media_id && mediaEnabled()}
+      <div class="card overflow-hidden p-0">
+        <ExerciseMedia id={ex.media_id} name={ex.name} size="full" class="aspect-square max-h-80 w-full" />
+      </div>
+    {/if}
     <div class="card flex items-center gap-4">
       <MuscleMap values={muscleValues} size={48} />
       <div class="text-sm">
@@ -117,6 +125,13 @@
       {#if ex.own}
         <input class="input" bind:value={ex.name} />
         <textarea class="input" rows="2" bind:value={ex.instructions}></textarea>
+        {#if mediaEnabled()}
+          <div class="flex items-center gap-3">
+            <ExerciseMedia id={ex.media_id} name={ex.name} class="h-16 w-16 rounded-xl" />
+            <button class="btn-soft btn-sm" onclick={() => (libOpen = true)}><Icon name="image" size={16} /> {ex.media_id ? 'Animation ändern' : 'Animation wählen'}</button>
+            {#if ex.media_id}<button class="btn-ghost btn-sm text-danger" onclick={() => (ex.media_id = null)}>Entfernen</button>{/if}
+          </div>
+        {/if}
       {:else}
         <p class="text-sm text-muted">Globale Übung – Progressionsregel und eigene Felder gelten nur für Kopien. Erstelle bei Bedarf eine eigene Übung.</p>
       {/if}
@@ -143,3 +158,4 @@
   {/if}
 </Sheet>
 {#if ex?.own}<ShareSheet bind:open={shareOpen} type="exercise" id={ex.id} />{/if}
+<MediaLibrary bind:open={libOpen} title="Animation wählen" onpick={(e) => (ex.media_id = e.id)} />

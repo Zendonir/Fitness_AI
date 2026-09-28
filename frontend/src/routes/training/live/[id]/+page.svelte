@@ -12,6 +12,8 @@
   import RestTimer from '$components/RestTimer.svelte';
   import Sheet from '$components/Sheet.svelte';
   import Stepper from '$components/Stepper.svelte';
+  import ExerciseMedia from '$components/ExerciseMedia.svelte';
+  import { mediaEnabled } from '$lib/media.js';
 
   const id = page.params.id;
   let w = $state(null);
@@ -26,6 +28,9 @@
   let reps = $state(8), weight = $state(0), rpe = $state(null), warmup = $state(false);
   let custom = $state({});
   let prs = $state([]);
+  let showMedia = $state(true);
+  try { showMedia = localStorage.getItem('ff_live_media') !== '0'; } catch {}
+  function toggleMedia() { showMedia = !showMedia; try { localStorage.setItem('ff_live_media', showMedia ? '1' : '0'); } catch {} }
 
   onMount(() => {
     load();
@@ -140,6 +145,16 @@
           </div>
           <a href="/coach?formcheck={ex.exercise_id}" class="chip text-xs">Formcheck</a>
         </div>
+        {#if ex.exercise.media_id && mediaEnabled()}
+          {#if showMedia}
+            <div class="relative mt-3 overflow-hidden rounded-2xl">
+              <ExerciseMedia id={ex.exercise.media_id} name={ex.exercise.name} size="full" class="mx-auto aspect-square max-h-56 w-full" />
+              <button class="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-1 text-xs text-white" onclick={toggleMedia}>Ausblenden</button>
+            </div>
+          {:else}
+            <button class="mt-2 text-xs text-accent" onclick={toggleMedia}>▶ Animation anzeigen</button>
+          {/if}
+        {/if}
         {#if ex.suggestion?.reason}
           <p class="mt-2 rounded-xl bg-accent/10 p-2 text-sm"><Icon name="sparkles" size={14} class="inline text-accent" /> {ex.suggestion.reason}</p>
         {/if}
@@ -200,6 +215,7 @@
   <input class="input mb-3" placeholder="Suchen …" bind:value={search} />
   {#each filtered as e}
     <button class="list-row w-full text-left" onclick={() => addExercise(e)}>
+      <ExerciseMedia id={e.media_id} name={e.name} class="h-10 w-10 rounded-lg" zoom={false} />
       <div class="flex-1"><div class="font-medium">{e.name}</div><div class="text-xs text-muted">{e.primary_muscles.map((m) => MUSCLES[m]).join(', ')}</div></div>
       <Icon name="plus" size={18} class="text-accent" />
     </button>

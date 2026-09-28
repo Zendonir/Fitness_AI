@@ -9,6 +9,7 @@
   import Icon from '$components/Icon.svelte';
   import Skeleton from '$components/Skeleton.svelte';
   import Empty from '$components/Empty.svelte';
+  import ExerciseMedia from '$components/ExerciseMedia.svelte';
 
   let today = $state(null);
   let workouts = $state(null);
@@ -57,8 +58,9 @@
       </div>
       <ul class="my-3 divide-y divide-line">
         {#each today.exercises as e}
-          <li class="flex items-center justify-between py-2 text-sm">
-            <span class="font-medium">{e.superset_group ? `${e.superset_group.toUpperCase()} · ` : ''}{e.exercise.name}</span>
+          <li class="flex items-center gap-2 py-2 text-sm">
+            <ExerciseMedia id={e.exercise.media_id} name={e.exercise.name} class="h-9 w-9 rounded-lg" />
+            <span class="flex-1 font-medium">{e.superset_group ? `${e.superset_group.toUpperCase()} · ` : ''}{e.exercise.name}</span>
             <span class="text-muted tabular-nums">{e.suggestion.sets}× {e.suggestion.reps}{e.suggestion.weight_kg ? ` · ${fmtWeight(e.suggestion.weight_kg)}` : ''}
               {#if e.suggestion.action === 'increase'}<span class="text-accent">↑</span>{/if}</span>
           </li>

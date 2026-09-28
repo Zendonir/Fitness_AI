@@ -13,6 +13,7 @@
   import Skeleton from '$components/Skeleton.svelte';
   import ShareSheet from '$components/ShareSheet.svelte';
   import ActionCard from '$components/ActionCard.svelte';
+  import ExerciseMedia from '$components/ExerciseMedia.svelte';
   import { md } from '$lib/markdown.js';
 
   let plan = $state(null);
@@ -185,8 +186,9 @@
                     <label>Supers.<input class="input px-1 py-1.5 text-center" maxlength="2" placeholder="–" bind:value={e.superset_group} /></label>
                   </div>
                 {:else}
-                  <a href="/training/exercises/{e.exercise_id}" class="flex justify-between text-sm">
-                    <span>{e.superset_group ? `${e.superset_group.toUpperCase()} · ` : ''}{e.exercise?.name}</span>
+                  <a href="/training/exercises/{e.exercise_id}" class="flex items-center gap-2 text-sm">
+                    <ExerciseMedia id={e.exercise?.media_id} name={e.exercise?.name} class="h-9 w-9 rounded-lg" zoom={false} />
+                    <span class="flex-1">{e.superset_group ? `${e.superset_group.toUpperCase()} · ` : ''}{e.exercise?.name}</span>
                     <span class="text-muted tabular-nums">{e.sets}× {e.rep_min}–{e.rep_max} · {e.rest_seconds}s</span>
                   </a>
                 {/if}
@@ -207,6 +209,7 @@
   <input class="input mb-3" placeholder="Suchen …" bind:value={q} />
   {#each filtered as e}
     <button class="list-row w-full text-left" onclick={() => addEx(e)}>
+      <ExerciseMedia id={e.media_id} name={e.name} class="h-10 w-10 rounded-lg" zoom={false} />
       <div class="flex-1"><div class="font-medium">{e.name}</div><div class="text-xs text-muted">{e.primary_muscles.map((m) => MUSCLES[m]).join(', ')}</div></div>
       <Icon name="plus" size={18} class="text-accent" />
     </button>

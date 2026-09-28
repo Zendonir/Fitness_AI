@@ -16,6 +16,7 @@ class Exercise(SQLModel, table=True):
     primary_muscles: list[str] = json_field(list)
     secondary_muscles: list[str] = json_field(list)
     instructions: str = text_field()
+    media_id: str | None = Field(default=None, max_length=160)  # ExerciseGymGifsDB-ID, z. B. "biceps/barbell-curl"
     # Definitionen eigener Satzfelder, z. B. [{"key":"tempo","label":"Tempo","type":"text"}]
     custom_fields: list[dict[str, Any]] = json_field(list)
     # Double-Progression: {"rep_min":8,"rep_max":12,"increment_kg":2.5,"all_sets":true}

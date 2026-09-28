@@ -5,6 +5,9 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEFAULT_MEDIA_BASE = "https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@v1.2.0"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -64,8 +67,15 @@ class Settings(BaseSettings):
     backup_hour: int = 3
 
     open_food_facts_url: str = "https://world.openfoodfacts.org"
-    bls_auto_import: bool = True  # Bundeslebensmittelschlüssel beim ersten Start herunterladen
+    # Bundeslebensmittelschlüssel beim ersten Start herunterladen
+    bls_auto_import: bool = True
+    # Übungsanimationen (ExerciseGymGifsDB). Leer = jsDelivr-CDN; eigener Spiegel möglich (gleiche Ordnerstruktur)
+    exercise_media_base: str = ""
     off_user_agent: str = "FitForge/1.0 (self-hosted)"
+
+    @property
+    def media_base(self) -> str:
+        return (self.exercise_media_base or DEFAULT_MEDIA_BASE).rstrip("/")
 
     @property
     def uploads_dir(self) -> Path:

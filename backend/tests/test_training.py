@@ -109,3 +109,35 @@ async def test_gpx_and_csv_import(make_user):
     rows = (await c.get("/api/cardio")).json()
     bike = next(x for x in rows if x["kind"] == "bike")
     assert bike["duration_s"] == 3900 and bike["distance_m"] == 30500
+
+
+async def test_exercise_media(make_user, anon_client):
+    from sqlmodel import select
+
+    from app.core.db import session_scope
+    from app.models import Exercise
+    from app.services.bootstrap import seed_database
+
+    cfg = (await anon_client.get("/api/auth/config")).json()
+    assert cfg["exercise_media_base"].startswith("https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@")
+    c = await make_user()
+    exs = (await c.get("/api/exercises")).json()
+    bench = next(e for e in exs if e["slug"] == "bench_press")
+    assert bench["media_id"] == "pectorals/barbell-bench-press"
+    assert sum(1 for e in exs if e["owner_id"] is None and e["media_id"]) >= 80
+    # eigene Übung mit Animation aus der Bibliothek
+    own = (await c.post("/api/exercises", json={"name": "Kabel-Curl Seil", "media_id": "biceps/cable-hammer-curl-with-rope",
+                                                 "primary_muscles": ["biceps"]})).json()
+    assert own["media_id"] == "biceps/cable-hammer-curl-with-rope"
+    assert (await c.post("/api/exercises", json={"name": "x", "media_id": "../../etc/passwd"})).status_code == 422
+    upd = (await c.patch(f"/api/exercises/{own['id']}", json={"media_id": None})).json()
+    assert upd["media_id"] is None
+    # Bestehende Installationen: fehlende Zuordnungen werden beim Start nachgetragen
+    async with session_scope() as db:
+        e = (await db.exec(select(Exercise).where(Exercise.slug == "bench_press", Exercise.owner_id.is_(None)))).first()
+        e.media_id = None
+        db.add(e)
+        await db.commit()
+        await seed_database(db)
+        await db.refresh(e)
+        assert e.media_id == "pectorals/barbell-bench-press"

@@ -142,6 +142,8 @@
         {#each [['protein', 'Protein'], ['carbs', 'KH'], ['fat', 'Fett'], ['fiber', 'Ballast.']] as [k, l]}<label class="text-center text-xs">{l}<input type="color" class="mt-1 h-10 w-full rounded-lg" value={s.theme.macro_colors?.[k]} onchange={(e) => save({ theme: { macro_colors: { [k]: e.currentTarget.value } } })} /></label>{/each}</div></div>
       <details class="card"><summary class="cursor-pointer text-sm font-medium">Farben pro Muskelgruppe</summary>
         <div class="mt-2 grid grid-cols-2 gap-2">{#each Object.entries(MUSCLES) as [k, l]}<label class="flex items-center justify-between gap-2 text-sm">{l}<input type="color" class="h-8 w-12 rounded" value={s.theme.muscle_colors?.[k] || '#22c55e'} onchange={(e) => save({ theme: { muscle_colors: { [k]: e.currentTarget.value } } })} /></label>{/each}</div></details>
+      <label class="flex items-center justify-between"><span>Übungsanimationen anzeigen<br /><span class="text-xs text-muted">GIFs aus ExerciseGymGifsDB, werden vom CDN geladen</span></span>
+        <input type="checkbox" class="h-6 w-6 accent-[var(--accent)]" checked={s.show_exercise_media} onchange={(e) => save({ show_exercise_media: e.currentTarget.checked })} /></label>
       <p class="section-title">Einheiten</p>
       {#each [['weight', 'Gewicht', [['kg', 'kg'], ['lb', 'lb']]], ['distance', 'Distanz', [['km', 'km'], ['mi', 'mi']]], ['energy', 'Energie', [['kcal', 'kcal'], ['kJ', 'kJ']]]] as [k, l, opts]}
         <div class="flex items-center justify-between"><span>{l}</span><div class="flex gap-1">{#each opts as [v, vl]}<button class={s.units[k] === v ? 'chip-active' : 'chip'} onclick={() => save({ units: { [k]: v } })}>{vl}</button>{/each}</div></div>

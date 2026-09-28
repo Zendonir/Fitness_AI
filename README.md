@@ -387,6 +387,21 @@ Den automatischen Download schaltest du mit `BLS_AUTO_IMPORT=false` ab.
 
 Quellenangabe: *Bundeslebensmittelschlüssel (BLS), Version 4.0, Max Rubner-Institut, Lizenz CC BY 4.0* · *Open Food Facts, ODbL*.
 
+## Übungsanimationen (ExerciseGymGifsDB)
+
+Die App zeigt animierte GIFs aus [ExerciseGymGifsDB](https://github.com/JahelCuadrado/ExerciseGymGifsDB) (Version v1.2.0, über 1.300 Übungen). Du siehst sie hier:
+
+- in der Übungsliste als Vorschaubild,
+- in der Übungsdetailansicht groß (zum Vergrößern antippen),
+- im Live-Workout einklappbar über der Satzeingabe,
+- in Plänen und in der Übungsauswahl.
+
+Alle 80 mitgelieferten Übungen sind bereits verknüpft; bestehende Installationen bekommen die Verknüpfung beim nächsten Start automatisch. Eigene Übungen verknüpfst du unter *Übung bearbeiten → Animation wählen*. Unter *Übungen → Bibliothek* kannst du eine Übung direkt aus der Sammlung übernehmen. Muskeln und Equipment werden dabei vorausgefüllt. Unter *Einstellungen → Übungsanimationen* schaltest du die Anzeige aus.
+
+**Lizenz:** Die GIFs gehören ihren jeweiligen Urhebern und sind **nicht** Teil dieses Repositorys oder des Docker-Images. Der Browser lädt sie direkt vom jsDelivr-CDN, und der Service Worker speichert angesehene Animationen für die Offline-Nutzung (max. 400 Dateien).
+
+**Eigener Spiegel:** Wenn du das CDN nicht nutzen willst, klonst du das Repo (Tag `v1.2.0`), stellst es per Webserver bereit (mit CORS-Header `Access-Control-Allow-Origin: *` für die JSON-Dateien) und setzt `EXERCISE_MEDIA_BASE=https://dein-spiegel/pfad`. Die Pfade `<muskel>/<name>.gif`, `<muskel>/<name>.thumb.webp` und `api/en/muscles/<muskel>.json` müssen erhalten bleiben.
+
 ---
 
 ## 11. Updates

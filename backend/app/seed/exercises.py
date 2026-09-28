@@ -127,6 +127,8 @@ _E = [
 
 
 def seed_exercises() -> list[dict]:
+    from app.seed.exercise_media import SEED_MEDIA
+
     out = []
     for slug, name, cat, eq, prim, sec, hint in _E:
         iso = cat == "isolation"
@@ -139,6 +141,7 @@ def seed_exercises() -> list[dict]:
                 "primary_muscles": prim,
                 "secondary_muscles": sec,
                 "instructions": hint,
+                "media_id": SEED_MEDIA.get(slug),
                 "progression": {
                     "rep_min": 10 if iso else 6,
                     "rep_max": 15 if iso else 10,

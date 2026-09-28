@@ -45,6 +45,19 @@ async def seed_database(db: AsyncSession) -> None:
         await db.commit()
         log.info("Übungsbibliothek angelegt")
 
+    # Animationen für bestehende Installationen nachtragen (nur leere Felder)
+    from app.seed.exercise_media import SEED_MEDIA
+
+    missing = (await db.exec(select(Exercise).where(Exercise.owner_id.is_(None), Exercise.media_id.is_(None)))).all()
+    changed = 0
+    for e in missing:
+        if e.slug in SEED_MEDIA:
+            e.media_id = SEED_MEDIA[e.slug]
+            db.add(e)
+            changed += 1
+    if changed:
+        await db.commit()
+
     tpl_count = (await db.exec(select(func.count()).select_from(Plan).where(Plan.is_template))).one()
     if tpl_count == 0:
         ex_map = {e.slug: e.id for e in (await db.exec(select(Exercise).where(Exercise.owner_id.is_(None)))).all()}

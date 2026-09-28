@@ -22,6 +22,7 @@ DEFAULT_USER_SETTINGS: dict[str, Any] = {
     "visible_nutrients": ["kcal", "protein", "carbs", "fat", "fiber", "water"],
     "water_goal_ml": 2500,
     "rest_timer_default": 120,
+    "show_exercise_media": True,
     "rest_timer_vibrate": True,
     "rest_timer_push": True,
     "ai": {
