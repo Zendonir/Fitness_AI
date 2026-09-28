@@ -1,0 +1,12 @@
+# Variante ohne macvlan (z. B. zum Testen oder wenn NPM im selben Docker läuft):
+#   docker compose -f docker-compose.yml -f docker-compose.bridge.yml up -d
+services:
+  app:
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    networks: !override
+      proxy: {}
+      internal: {}
+
+networks:
+  lan: !reset null

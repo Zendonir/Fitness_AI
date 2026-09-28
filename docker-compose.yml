@@ -1,0 +1,139 @@
+# FitForge – self-hosted Trainings- & Ernährungstracker mit KI-Coach
+# Start:  cp .env.example .env  (Werte anpassen)  →  docker compose up -d
+name: fitforge
+
+x-app-env: &app-env
+  TZ: ${TZ:-Europe/Berlin}
+  PUID: ${PUID:-568}
+  PGID: ${PGID:-568}
+  PUBLIC_URL: ${PUBLIC_URL}
+  SECRET_KEY: ${SECRET_KEY}
+  FERNET_KEY: ${FERNET_KEY}
+  DATABASE_URL: postgresql+asyncpg://fitforge:${POSTGRES_PASSWORD}@postgres:5432/fitforge
+  REDIS_URL: redis://redis:6379/0
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+  AI_ENABLED: ${AI_ENABLED:-true}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+  DEFAULT_AI_PROVIDER: ${DEFAULT_AI_PROVIDER:-anthropic}
+  DEFAULT_ANTHROPIC_MODEL: ${DEFAULT_ANTHROPIC_MODEL:-claude-opus-5}
+  DEFAULT_OPENAI_MODEL: ${DEFAULT_OPENAI_MODEL:-gpt-5}
+  DEFAULT_OLLAMA_MODEL: ${DEFAULT_OLLAMA_MODEL:-llama3.1}
+  AI_DEFAULT_MONTHLY_LIMIT_USD: ${AI_DEFAULT_MONTHLY_LIMIT_USD:-10}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+  OIDC_ISSUER: ${OIDC_ISSUER:-}
+  OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+  OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+  OIDC_DISPLAY_NAME: ${OIDC_DISPLAY_NAME:-SSO}
+  OIDC_AUTO_CREATE: ${OIDC_AUTO_CREATE:-false}
+  OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-}
+  BACKUP_HOUR: ${BACKUP_HOUR:-3}
+  BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
+  BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
+  BACKUP_KEEP_MONTHLY: ${BACKUP_KEEP_MONTHLY:-6}
+
+services:
+  app:
+    image: ${FITFORGE_IMAGE:-ghcr.io/zendonir/fitness_ai:latest}
+    build: .
+    container_name: fitforge-app
+    restart: unless-stopped
+    command: ["app"]
+    environment: *app-env
+    volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/uploads:/data/uploads
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/backups:/data/backups
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks:
+      lan:
+        ipv4_address: ${APP_IP}
+      proxy: {}
+      internal: {}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  worker:
+    image: ${FITFORGE_IMAGE:-ghcr.io/zendonir/fitness_ai:latest}
+    container_name: fitforge-worker
+    restart: unless-stopped
+    command: ["worker"]
+    environment: *app-env
+    volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/uploads:/data/uploads
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/backups:/data/backups
+    depends_on:
+      app: { condition: service_healthy }
+    networks:
+      proxy: {}      # Internetzugang für KI-APIs und Web-Push
+      internal: {}
+    healthcheck:
+      test: ["CMD", "arq", "app.worker.WorkerSettings", "--check"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fitforge-postgres
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      POSTGRES_DB: fitforge
+      POSTGRES_USER: fitforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/postgres:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fitforge -d fitforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: fitforge-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "300", "10"]
+    volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/redis:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  # Eigene IP im LAN (macvlan). Hinweis: Der TrueNAS-Host selbst kann macvlan-Container
+  # NICHT direkt erreichen – dafür gibt es zusätzlich das Bridge-Netz "proxy".
+  lan:
+    driver: macvlan
+    driver_opts:
+      parent: ${MACVLAN_PARENT:-eno1}
+    ipam:
+      config:
+        - subnet: ${LAN_SUBNET:-192.168.1.0/24}
+          gateway: ${LAN_GATEWAY:-192.168.1.1}
+          ip_range: ${LAN_IP_RANGE:-192.168.1.240/29}
+  # Bridge-Netz für Nginx Proxy Manager (NPM hängt man per "docker network connect" an).
+  proxy:
+    name: fitforge_proxy
+    driver: bridge
+  # Nur intern: Datenbank und Redis sind von außen nicht erreichbar.
+  internal:
+    name: fitforge_internal
+    driver: bridge
+    internal: true
