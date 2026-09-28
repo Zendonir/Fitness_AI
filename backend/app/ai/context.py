@@ -13,6 +13,13 @@ from app.services.app_settings import get_user_settings
 from app.services.nutrition import body_from_profile, floors
 from app.services.targets import latest_weight
 
+PLAN_EDIT_HINT = """## Trainingsplan bearbeiten
+Du kannst den Trainingsplan des Benutzers direkt anpassen: Übungen tauschen, hinzufügen, entfernen, Sätze/Wiederholungen/
+Pausen/Supersätze ändern, Trainingstage anlegen, entfernen, umbenennen oder Wochentagen zuordnen, Blocklänge und
+Deload-Wochen setzen (propose_plan_changes) oder einen neuen Plan erstellen (propose_new_plan). Nutze das, wenn der Benutzer
+danach fragt, und schlage es auch von dir aus vor, wenn die Daten es nahelegen. Lade den Plan vorher (get_active_plan).
+Der Benutzer bestätigt jede Änderung per Vorher/Nachher-Ansicht."""
+
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 
 
@@ -98,6 +105,7 @@ async def build_system_prompt(db: AsyncSession, user: User, extra: str = "") -> 
         label = {"day": "Tag", "week": "Woche ab", "month": "Monat"}
         add("## Verlauf (Zusammenfassungen)\n" + "\n".join(
             f"- {label[x.period]} {x.period_start.strftime('%d.%m.%Y')}: {x.content[:600]}" for x in chosen))
+    parts.append(PLAN_EDIT_HINT)
     if extra:
         parts.append(extra)
     return base + "\n\n" + "\n\n".join(parts)

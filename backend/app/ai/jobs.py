@@ -145,7 +145,42 @@ async def run_weekly(db: AsyncSession, user: User) -> CoachSummary:
     row = await period_report(db, user, "week", start)
     await _hint(db, user, "weekly", "Dein Wochenrückblick ist da 📊", row.content[:180], {"start": start.isoformat()},
                 f"weekly:{start}", push_kind="briefings", url=f"/progress/report?period=week&start={start}")
+    await suggest_plan_changes(db, user)
     return row
+
+
+async def suggest_plan_changes(db: AsyncSession, user: User) -> CoachHint | None:
+    """Proaktiv: Coach prüft den aktiven Plan und legt ggf. einen Änderungsvorschlag zur Bestätigung an."""
+    from app.ai.plan_review import run_plan_review
+    from app.models import PendingAction
+
+    s = await get_user_settings(db, user.id)
+    pro = s["ai"].get("proactive", {})
+    if not (pro.get("enabled", True) and pro.get("plan_suggestions", True) and s["ai"]["consents"].get("training")):
+        return None
+    ok, _ = await ai_available(db, user)
+    plan = (await db.exec(select(Plan).where(Plan.owner_id == user.id, Plan.is_active))).first()
+    if not ok or not plan:
+        return None
+    open_ = (await db.exec(select(PendingAction).where(PendingAction.user_id == user.id, PendingAction.status == "pending",
+                                                       PendingAction.tool.in_(["propose_plan_changes", "propose_new_plan"])))).first()
+    if open_:
+        return None  # nicht mit weiteren Vorschlägen überhäufen
+    try:
+        res = await run_plan_review(db, user, plan, None, proactive=True)
+    except (AIDisabledError, AILimitError) as e:
+        log.info("Planvorschlag übersprungen für %s: %s", user.id, e)
+        return None
+    except Exception:  # noqa: BLE001
+        log.exception("Planvorschlag fehlgeschlagen")
+        return None
+    if not res["actions"]:
+        return None
+    a = res["actions"][0]
+    iso = date.today().isocalendar()
+    return await _hint(db, user, "plan_suggestion", "Coach schlägt Planänderung vor 🏋️",
+                       (a.get("diff", {}).get("reason") or a["summary"])[:220], {"action_id": a["id"], "plan_id": plan.id},
+                       f"plan_suggestion:{iso[0]}-{iso[1]}:{a['id']}", url=f"/training/plans/{plan.id}")
 
 
 async def run_monthly(db: AsyncSession, user: User) -> CoachSummary:

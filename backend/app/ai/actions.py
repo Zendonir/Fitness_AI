@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models import BodyMeasurement, CoachProfile, PendingAction, Plan, PlanDay, PlanExercise, User, UserProfile, Workout, WorkoutSet
+from app.models import BodyMeasurement, CoachProfile, PendingAction, Plan, User, UserProfile, Workout, WorkoutSet
 from app.services.meals import build_meal_entry
 
 
@@ -38,30 +38,20 @@ async def execute_action(db: AsyncSession, user: User, pa: PendingAction) -> dic
         result = {"goal": p.goal}
 
     elif pa.tool == "propose_plan_changes":
+        from app.ai import plan_edit
+
         plan = await db.get(Plan, a["plan_id"])
         if not plan or plan.owner_id != user.id:
             raise HTTPException(404, "Plan nicht gefunden")
-        from app.ai.tools import ToolContext, find_exercise
-
-        ctx = ToolContext(db=db, user=user)
-        days = (await db.exec(select(PlanDay).where(PlanDay.plan_id == plan.id))).all()
-        by_name = {d.name.lower(): d for d in days}
-        for d in a["days"]:
-            day = by_name.get(d["day"].lower())
-            if not day:
-                continue
-            for old in (await db.exec(select(PlanExercise).where(PlanExercise.plan_day_id == day.id))).all():
-                await db.delete(old)
-            await db.flush()
-            for i, e in enumerate(d["exercises"]):
-                ex = await find_exercise(ctx, e["exercise"])
-                if ex:
-                    db.add(PlanExercise(plan_day_id=day.id, exercise_id=ex.id, position=i, sets=e.get("sets", 3),
-                                        rep_min=e.get("rep_min", 8), rep_max=e.get("rep_max", 12),
-                                        rest_seconds=e.get("rest_seconds", 120), target_rpe=e.get("target_rpe")))
-        plan.updated_at = datetime.now(UTC)
-        db.add(plan)
+        await plan_edit.assert_fresh(plan, a.get("base"))
+        await plan_edit.write_plan(db, plan, a["after"])
         result = {"plan_id": plan.id}
+
+    elif pa.tool == "propose_new_plan":
+        from app.ai import plan_edit
+
+        plan = await plan_edit.create_plan(db, user, a["spec"])
+        result = {"plan_id": plan.id, "activated": plan.is_active}
 
     elif pa.tool == "propose_workout":
         w = Workout(user_id=user.id, name=a.get("name") or "Coach-Workout")

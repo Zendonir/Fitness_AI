@@ -42,6 +42,7 @@ DEFAULT_USER_SETTINGS: dict[str, Any] = {
             "missed_training": True,
             "new_pr": True,
             "deload": True,
+            "plan_suggestions": True,
         },
         "briefing": {"morning_enabled": False, "morning_time": "07:00", "evening_enabled": False, "evening_time": "20:30"},
         "push": {"hints": True, "briefings": True, "timer": True},

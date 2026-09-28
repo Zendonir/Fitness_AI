@@ -55,7 +55,11 @@ TOOL_SPECS: list[ToolSpec] = [
     ToolSpec("get_personal_records", "Persönliche Rekorde (neue Bestleistungen) im Zeitraum.",
              {"type": "object", "properties": {"days": _days(90)}}),
     ToolSpec("get_training_volume", "Arbeitssätze pro Muskelgruppe im Zeitraum.", {"type": "object", "properties": {"days": _days(7, 60)}}),
-    ToolSpec("get_active_plan", "Aktiver Trainingsplan mit Tagen, Übungen, Sätzen und Wiederholungsbereichen, aktuelle Woche.", READ_ONLY),
+    ToolSpec("get_active_plan", "Aktiver Trainingsplan mit Tagen, Wochentagen, Übungen, Sätzen, Wiederholungsbereichen, "
+             "Pausen, Supersätzen und aktueller Woche.", READ_ONLY),
+    ToolSpec("list_plans", "Eigene Trainingspläne (inkl. aktivem) und verfügbare Vorlagen auflisten.", READ_ONLY),
+    ToolSpec("get_plan", "Einen bestimmten eigenen Plan oder eine Vorlage mit allen Details laden.",
+             {"type": "object", "properties": {"plan": {"type": "string", "description": "Planname"}}, "required": ["plan"]}),
     ToolSpec("get_nutrition", "Ernährung: Tageswerte und Durchschnitt vs. Ziele, Top-Lebensmittel.",
              {"type": "object", "properties": {"days": _days(7, 90)}}),
     ToolSpec("get_nutrition_targets", "Aktuelle Tagesziele (Trainings-/Ruhetag), Bedarf (TDEE) und feste Untergrenzen.", READ_ONLY),
@@ -89,17 +93,48 @@ TOOL_SPECS: list[ToolSpec] = [
                  "training": {"type": "object", "properties": {k: {"type": "number"} for k in ("kcal", "protein", "carbs", "fat")}},
                  "rest": {"type": "object", "properties": {k: {"type": "number"} for k in ("kcal", "protein", "carbs", "fat")}},
                  "reason": {"type": "string"}}}),
-    ToolSpec("propose_plan_changes", "Änderungen am aktiven Trainingsplan vorschlagen (als Diff). Bestätigung erforderlich.",
+    ToolSpec("propose_plan_changes",
+             "Trainingsplan des Benutzers ändern (Standard: aktiver Plan). Nutze das, wenn der Benutzer eine Änderung "
+             "wünscht ODER du aufgrund von Fortschritt, RPE, Regeneration oder Zeitbudget eine Anpassung empfiehlst. "
+             "Rufe vorher get_active_plan bzw. get_plan auf, um exakte Tag- und Übungsnamen zu kennen. "
+             "Der Benutzer sieht ein Vorher/Nachher und bestätigt. Operationen: "
+             "add/remove/update/replace/move (Übungen), add_day/remove_day/rename_day/set_weekday/move_day (Tage), "
+             "set_plan (name, weeks, deload_weeks, deload_factor). position ist 1-basiert.",
              {"type": "object", "properties": {
-                 "reason": {"type": "string"},
+                 "plan": {"type": "string", "description": "Planname; leer = aktiver Plan"},
+                 "reason": {"type": "string", "description": "Kurze Begründung für den Benutzer"},
+                 "allow_duplicates": {"type": "boolean", "description": "Gleiche Übung mehrfach an einem Tag erlauben"},
                  "changes": {"type": "array", "items": {"type": "object", "properties": {
-                     "op": {"type": "string", "enum": ["add", "remove", "update", "replace"]},
+                     "op": {"type": "string", "enum": ["add", "remove", "update", "replace", "move", "add_day", "remove_day",
+                                                       "rename_day", "set_weekday", "move_day", "set_plan"]},
                      "day": {"type": "string", "description": "Name des Plantags"},
-                     "exercise": {"type": "string", "description": "Bestehende Übung (remove/update/replace)"},
-                     "new_exercise": {"type": "string", "description": "Neue Übung (add/replace)"},
+                     "new_name": {"type": "string", "description": "Neuer Tagname (rename_day/add_day)"},
+                     "weekday": {"type": "string", "description": "Mo, Di, Mi, Do, Fr, Sa, So oder leer"},
+                     "exercise": {"type": "string", "description": "Bestehende Übung (remove/update/replace/move)"},
+                     "new_exercise": {"type": "string", "description": "Neue Übung aus der Bibliothek (add/replace)"},
+                     "position": {"type": "integer"},
                      "sets": {"type": "integer"}, "rep_min": {"type": "integer"}, "rep_max": {"type": "integer"},
-                     "rest_seconds": {"type": "integer"}, "target_rpe": {"type": "number"}},
-                     "required": ["op", "day"]}}}, "required": ["changes"]}),
+                     "rest_seconds": {"type": "integer"}, "target_rpe": {"type": "number"},
+                     "superset_group": {"type": "string"}, "notes": {"type": "string"},
+                     "name": {"type": "string"}, "weeks": {"type": "integer"},
+                     "deload_weeks": {"type": "array", "items": {"type": "integer"}}, "deload_factor": {"type": "number"}},
+                     "required": ["op"]}}}, "required": ["changes"]}),
+    ToolSpec("propose_new_plan",
+             "Einen komplett neuen Trainingsplan für den Benutzer erstellen (z. B. bei neuem Ziel, anderer Frequenz oder "
+             "wenn der bisherige Plan ersetzt werden soll). Nur Übungen aus der Bibliothek verwenden. Bestätigung erforderlich.",
+             {"type": "object", "properties": {
+                 "name": {"type": "string"}, "description": {"type": "string"},
+                 "weeks": {"type": "integer"}, "deload_weeks": {"type": "array", "items": {"type": "integer"}},
+                 "activate": {"type": "boolean", "description": "Nach Bestätigung als aktiven Plan setzen"},
+                 "reason": {"type": "string"},
+                 "days": {"type": "array", "items": {"type": "object", "properties": {
+                     "name": {"type": "string"}, "weekday": {"type": "string"},
+                     "exercises": {"type": "array", "items": {"type": "object", "properties": {
+                     "exercise": {"type": "string"}, "sets": {"type": "integer"}, "rep_min": {"type": "integer"},
+                     "rep_max": {"type": "integer"}, "rest_seconds": {"type": "integer"}, "target_rpe": {"type": "number"},
+                     "superset_group": {"type": "string", "description": "z. B. a – gleiche Buchstaben = Supersatz"},
+                     "notes": {"type": "string"}}, "required": ["exercise"]}}},
+                     "required": ["name", "exercises"]}}}, "required": ["name", "days"]}),
     ToolSpec("propose_workout", "Ein konkretes Workout für heute vorschlagen (z. B. Kurzversion für wenig Zeit). "
              "Nach Bestätigung wird es im Live-Modus vorbereitet.",
              {"type": "object", "properties": {
@@ -120,7 +155,7 @@ WRITE_TOOLS = {t.name for t in TOOL_SPECS if t.name.startswith("propose_")}
 CONSENT_FOR = {"get_nutrition": "nutrition", "get_nutrition_targets": "nutrition", "get_today_status": "nutrition",
                "get_weight_trend": "body", "get_metrics": "metrics", "propose_log_weight": "body",
                "get_workouts": "training", "get_exercise_progress": "training", "get_personal_records": "training",
-               "get_training_volume": "training", "get_active_plan": "training"}
+               "get_training_volume": "training", "get_active_plan": "training", "list_plans": "training", "get_plan": "training"}
 
 
 @dataclass
@@ -159,18 +194,14 @@ async def _active_plan(ctx: ToolContext) -> Plan | None:
     return (await ctx.db.exec(select(Plan).where(Plan.owner_id == ctx.user.id, Plan.is_active))).first()
 
 
-async def plan_structure(db: AsyncSession, plan: Plan) -> list[dict[str, Any]]:
-    days = (await db.exec(select(PlanDay).where(PlanDay.plan_id == plan.id).order_by(PlanDay.position))).all()
-    out = []
-    for d in days:
-        pes = (await db.exec(select(PlanExercise).where(PlanExercise.plan_day_id == d.id).order_by(PlanExercise.position))).all()
-        items = []
-        for p in pes:
-            e = await db.get(Exercise, p.exercise_id)
-            items.append({"exercise": e.name if e else "?", "sets": p.sets, "rep_min": p.rep_min, "rep_max": p.rep_max,
-                          "rest_seconds": p.rest_seconds, "target_rpe": p.target_rpe})
-        out.append({"day": d.name, "weekday": d.weekday, "exercises": items})
-    return out
+async def _find_plan(ctx: ToolContext, name: str | None, include_templates: bool = False) -> Plan | None:
+    rows = (await ctx.db.exec(select(Plan).where(readable_clause(Plan, "plan", ctx.user.id)))).all()
+    if not include_templates:
+        rows = [p for p in rows if p.owner_id == ctx.user.id]
+    key = str(name or "").strip().lower()
+    exact = [p for p in rows if p.name.lower() == key]
+    own_first = sorted(exact or [p for p in rows if key and key in p.name.lower()], key=lambda p: (p.owner_id != ctx.user.id, not p.is_active))
+    return own_first[0] if own_first else None
 
 
 async def _pending(ctx: ToolContext, tool: str, args: dict[str, Any], summary: str, diff: dict[str, Any]) -> str:
@@ -234,14 +265,25 @@ async def execute_tool(ctx: ToolContext, call: ToolCall) -> str:
         return _dump(await st.muscle_volume(db, uid, today - timedelta(days=int(a.get("days", 7)) - 1), today))
 
     if name == "get_active_plan":
+        from app.ai import plan_edit
+        from app.api.training import plan_week
+
         plan = await _active_plan(ctx)
         if not plan:
             return _dump({"active_plan": None})
-        from app.api.training import plan_week
-
         week, deload = plan_week(plan)
-        return _dump({"name": plan.name, "week": week, "weeks": plan.weeks, "deload_week": deload,
-                      "deload_weeks": plan.deload_weeks, "days": await plan_structure(db, plan)})
+        return _dump({**await plan_edit.snapshot(db, plan), "current_week": week, "deload_week": deload})
+
+    if name == "list_plans":
+        rows = (await db.exec(select(Plan).where(readable_clause(Plan, "plan", uid)))).all()
+        return _dump([{"name": p.name, "own": p.owner_id == uid, "active": p.is_active and p.owner_id == uid,
+                       "template": p.owner_id is None, "weeks": p.weeks} for p in rows])
+
+    if name == "get_plan":
+        from app.ai import plan_edit
+
+        plan = await _find_plan(ctx, a.get("plan"), include_templates=True)
+        return _dump(await plan_edit.snapshot(db, plan) if plan else {"error": "Plan nicht gefunden"})
 
     if name == "get_nutrition":
         days = int(a.get("days", 7))
@@ -320,41 +362,53 @@ async def execute_tool(ctx: ToolContext, call: ToolCall) -> str:
         return await _pending(ctx, name, {"goal": body.goal, "custom": custom, "reason": a.get("reason", "")}, summary, diff)
 
     if name == "propose_plan_changes":
-        plan = await _active_plan(ctx)
+        from app.ai import plan_edit
+
+        plan = await _find_plan(ctx, a.get("plan")) if a.get("plan") else await _active_plan(ctx)
         if not plan:
-            return _dump({"error": "Kein aktiver Plan"})
-        before = await plan_structure(db, plan)
-        after = json.loads(json.dumps(before))
-        errors = []
-        for ch in a.get("changes", []):
-            day = next((d for d in after if d["day"].lower() == str(ch.get("day", "")).lower()), None)
-            if not day:
-                errors.append(f"Tag '{ch.get('day')}' nicht gefunden")
-                continue
-            op = ch.get("op")
-            idx = next((i for i, e in enumerate(day["exercises"]) if e["exercise"].lower() == str(ch.get("exercise", "")).lower()), None)
-            fields = {k: ch[k] for k in ("sets", "rep_min", "rep_max", "rest_seconds", "target_rpe") if ch.get(k) is not None}
-            if op in ("add", "replace"):
-                ex = await find_exercise(ctx, str(ch.get("new_exercise") or ""))
-                if not ex:
-                    errors.append(f"Übung '{ch.get('new_exercise')}' nicht gefunden")
-                    continue
-            if op == "add":
-                day["exercises"].append({"exercise": ex.name, "sets": 3, "rep_min": 8, "rep_max": 12, "rest_seconds": 120,
-                                         "target_rpe": 8, **fields})
-            elif idx is None:
-                errors.append(f"Übung '{ch.get('exercise')}' an '{day['day']}' nicht gefunden")
-            elif op == "remove":
-                day["exercises"].pop(idx)
-            elif op == "update":
-                day["exercises"][idx].update(fields)
-            elif op == "replace":
-                day["exercises"][idx] = {**day["exercises"][idx], "exercise": ex.name, **fields}
-        if errors and after == before:
-            return _dump({"error": "; ".join(errors)})
+            return _dump({"error": "Plan nicht gefunden" if a.get("plan") else "Kein aktiver Plan – nutze list_plans oder propose_new_plan"})
+        if plan.owner_id != uid:
+            return _dump({"error": "Vorlagen können nicht direkt geändert werden – erstelle mit propose_new_plan eine eigene Version"})
+        before = await plan_edit.snapshot(db, plan)
+        after, warnings = await plan_edit.apply_changes(before, a.get("changes") or [], lambda n: find_exercise(ctx, n))
+        if after == before:
+            return _dump({"error": "Keine wirksame Änderung", "hinweise": warnings, "plan": before})
+        dupes = [w for w in warnings if "mehrfach" in w]
+        if dupes and not a.get("allow_duplicates"):
+            return _dump({"error": "Übung doppelt am selben Tag – bitte eine andere Übung wählen oder die bestehende anpassen "
+                                   "(allow_duplicates=true, falls wirklich gewollt)", "hinweise": dupes})
         summary = f"Plan „{plan.name}“ anpassen" + (f": {a.get('reason')}" if a.get("reason") else "")
-        return await _pending(ctx, name, {"plan_id": plan.id, "days": after, "reason": a.get("reason", "")}, summary,
-                              {"before": before, "after": after, "warnings": errors})
+        return await _pending(ctx, name, {"plan_id": plan.id, "after": after, "base": plan_edit.stamp(plan),
+                                          "reason": a.get("reason", "")},
+                              summary, {"before": before, "after": after, "warnings": warnings, "reason": a.get("reason", "")})
+
+    if name == "propose_new_plan":
+        from app.ai import plan_edit
+
+        warnings: list[str] = []
+        days = []
+        for d in (a.get("days") or [])[:7]:
+            items = []
+            for e in d.get("exercises") or []:
+                ex = await find_exercise(ctx, str(e.get("exercise", "")))
+                if not ex:
+                    warnings.append(f"Übung „{e.get('exercise')}“ nicht gefunden – ausgelassen")
+                    continue
+                prog = ex.progression or {}
+                items.append({"exercise_id": ex.id, "exercise": ex.name, "sets": 3, "rep_min": prog.get("rep_min", 8),
+                              "rep_max": prog.get("rep_max", 12), "target_rpe": 8.0, "rest_seconds": 120,
+                              "superset_group": None, "notes": "", **plan_edit._clean_fields(e)})
+            days.append({"id": None, "day": str(d.get("name") or f"Tag {len(days) + 1}")[:80],
+                         "weekday": plan_edit.parse_weekday(d.get("weekday")), "notes": "", "exercises": items})
+        if not days or not any(d["exercises"] for d in days):
+            return _dump({"error": "Plan ohne gültige Übungen", "hinweise": warnings})
+        weeks = min(max(int(a.get("weeks") or 4), 1), 52)
+        spec = {"name": str(a["name"])[:120], "description": str(a.get("description") or "")[:1000], "weeks": weeks,
+                "deload_weeks": sorted({int(w) for w in a.get("deload_weeks") or [] if 1 <= int(w) <= weeks}),
+                "deload_factor": 0.6, "activate": bool(a.get("activate", True)), "days": days}
+        return await _pending(ctx, name, {"spec": spec, "reason": a.get("reason", "")},
+                              f"Neuer Plan „{spec['name']}“" + (" (wird aktiviert)" if spec["activate"] else ""),
+                              {"before": [], "after": spec, "warnings": warnings, "reason": a.get("reason", "")})
 
     if name == "propose_workout":
         resolved = []

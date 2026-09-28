@@ -255,6 +255,10 @@ Die App ist **ohne KI voll nutzbar**. Die KI schaltest du global unter *Administ
 - **Leitplanken:** Keine Diagnosen, Verweis auf Ärztin oder Arzt, keine Crash-Diäten.
   Die kcal- und Protein-Untergrenzen erzwingt der Code (`backend/app/services/nutrition.py`), auch gegenüber KI-Vorschlägen.
 - **Schreibende Aktionen** des Coaches, etwa Mahlzeit loggen, Plan anpassen oder Ziel ändern, erscheinen immer als Karte mit Diff und müssen bestätigt werden.
+- **Trainingsplan mit dem Coach bearbeiten:** Frag im Chat („Leg den Armtag auf Samstag“, „Ich habe nur noch 3 Tage“) oder tippe auf der Planseite auf *Mit Coach bearbeiten*.
+  Der Coach kann Übungen tauschen, hinzufügen, entfernen und umsortieren, Sätze, Wiederholungen, Pausen und Supersätze ändern, Trainingstage anlegen, entfernen, umbenennen und Wochentagen zuordnen, Blocklänge und Deload-Wochen setzen oder einen komplett neuen Plan erstellen.
+  Einmal pro Woche prüft er den aktiven Plan anhand deiner Trainings und legt bei Bedarf selbst einen Vorschlag an (abschaltbar unter *Einstellungen → KI-Coach → Wöchentliche Planvorschläge*).
+  Jede Änderung erscheint als Vorher/Nachher und wird erst nach *Übernehmen* gespeichert. Der Trainingsverlauf bleibt dabei mit den Plantagen verknüpft.
 
 ---
 

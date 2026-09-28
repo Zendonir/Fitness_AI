@@ -358,10 +358,37 @@ async def chat(body: ChatIn, user: CurrentUser, db: DB) -> StreamingResponse:
 
 # ================================================================ Bestätigungen
 @router.get("/actions")
-async def list_actions(user: CurrentUser, db: DB, status: str = "pending") -> list[dict[str, Any]]:
+async def list_actions(user: CurrentUser, db: DB, status: str = "pending", plan_id: int | None = None) -> list[dict[str, Any]]:
     rows = (await db.exec(select(PendingAction).where(PendingAction.user_id == user.id, PendingAction.status == status)
                           .order_by(PendingAction.created_at.desc()).limit(50))).all()
+    if plan_id is not None:
+        rows = [r for r in rows if r.tool == "propose_plan_changes" and (r.args or {}).get("plan_id") == plan_id]
     return [r.model_dump() for r in rows]
+
+
+class PlanReviewIn(BaseModel):
+    plan_id: int | None = None
+    request: str = Field("", max_length=2000)
+
+
+@router.post("/plan-review")
+async def plan_review(body: PlanReviewIn, user: CurrentUser, db: DB) -> dict[str, Any]:
+    """Coach bearbeitet einen Plan nach Wunsch – Ergebnis sind Vorschläge zum Bestätigen."""
+    from app.ai.plan_review import run_plan_review
+    from app.models import Plan
+
+    s = await get_user_settings(db, user.id)
+    if not s["ai"]["consents"].get("training"):
+        raise HTTPException(403, "Trainingsdaten sind nicht für die KI freigegeben (Einstellungen → KI → Datenfreigaben)")
+    plan = None
+    if body.plan_id:
+        plan = await db.get(Plan, body.plan_id)
+        if not plan or plan.owner_id != user.id:
+            raise HTTPException(404, "Plan nicht gefunden")
+    try:
+        return await run_plan_review(db, user, plan, body.request)
+    except (AIDisabledError, AILimitError, ProviderError) as e:
+        raise _ai_error(e) from e
 
 
 @router.post("/actions/{aid}/confirm")

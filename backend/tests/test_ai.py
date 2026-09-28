@@ -387,8 +387,8 @@ async def test_plan_change_diff_and_apply(make_user):
             {"op": "replace", "day": day["name"], "exercise": first, "new_exercise": "Beinpresse"},
             {"op": "update", "day": day["name"], "exercise": "Bankdrücken", "sets": 5}]})))
     act = next(a for a in (await c.get("/api/coach/actions")).json() if a["id"] == out["action_id"])
-    assert act["diff"]["before"][0]["exercises"][0]["exercise"] == first
-    assert act["diff"]["after"][0]["exercises"][0]["exercise"] == "Beinpresse"
+    assert act["diff"]["before"]["days"][0]["exercises"][0]["exercise"] == first
+    assert act["diff"]["after"]["days"][0]["exercises"][0]["exercise"] == "Beinpresse"
     await c.post(f"/api/coach/actions/{act['id']}/confirm")
     updated = (await c.get(f"/api/plans/{plan['id']}")).json()
     names = [e["exercise"]["name"] for e in updated["days"][0]["exercises"]]

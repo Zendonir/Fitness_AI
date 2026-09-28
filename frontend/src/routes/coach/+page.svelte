@@ -19,6 +19,7 @@
   let busy = $state(false);
   let toolInfo = $state('');
   let hints = $state([]);
+  let pending = $state([]);
   let historyOpen = $state(false);
   let conversations = $state([]);
   let scroller = $state();
@@ -27,13 +28,14 @@
   const formcheckId = page.url.searchParams.get('formcheck');
   let formcheckEx = $state(null);
 
-  const QUICK = [['dinner', 'Was esse ich heute Abend?'], ['week', 'Wie war meine Woche?'], ['short_workout', 'Nur 30 Minuten Zeit'], ['plan_review', 'Plan überprüfen']];
+  const QUICK = [['plan_review', 'Trainingsplan anpassen'], ['dinner', 'Was esse ich heute Abend?'], ['week', 'Wie war meine Woche?'], ['short_workout', 'Nur 30 Minuten Zeit']];
   const TOOL_LABELS = { get_workouts: 'Workouts', get_nutrition: 'Ernährung', get_today_status: 'Tagesstand', get_exercise_progress: 'Übungsverlauf',
-    get_weight_trend: 'Gewicht', get_active_plan: 'Trainingsplan', get_metrics: 'Metriken', search_foods: 'Lebensmittel', save_memory: 'Gedächtnis' };
+    get_weight_trend: 'Gewicht', get_active_plan: 'Trainingsplan', get_plan: 'Trainingsplan', list_plans: 'Pläne', propose_plan_changes: 'Planänderung', propose_new_plan: 'Neuer Plan', get_metrics: 'Metriken', search_foods: 'Lebensmittel', save_memory: 'Gedächtnis' };
 
   onMount(async () => {
     status = await api.get('/api/coach/status').catch(() => null);
     hints = await api.get('/api/coach/hints').catch(() => []);
+    pending = await api.get('/api/coach/actions').catch(() => []);
     if (formcheckId) formcheckEx = await api.get(`/api/exercises/${formcheckId}`).catch(() => null);
   });
 
@@ -122,7 +124,11 @@
   {/if}
 
   {#if !messages.length}
-    {#each hints.slice(0, 3) as h}
+    {#if pending.length}
+      <p class="section-title">Offene Vorschläge ({pending.length})</p>
+      <div class="mb-3 space-y-2">{#each pending as a (a.id)}<ActionCard action={a} onresolved={() => (pending = pending.filter((x) => x.id !== a.id))} />{/each}</div>
+    {/if}
+    {#each hints.filter((h) => h.kind !== 'plan_suggestion').slice(0, 3) as h}
       <div class="card mb-2 flex gap-3">
         <div class="h-fit rounded-xl bg-accent/15 p-2 text-accent"><Icon name={h.kind === 'new_pr' ? 'trophy' : 'sparkles'} size={18} /></div>
         <div class="flex-1"><div class="font-semibold">{h.title}</div><p class="text-sm text-muted">{h.body}</p>

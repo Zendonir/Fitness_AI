@@ -5,30 +5,23 @@
   import { toast, toastError } from '$lib/toast.svelte.js';
   import { GOALS } from '$lib/units.js';
   import Icon from './Icon.svelte';
+  import PlanDiff from './PlanDiff.svelte';
   let { action, onresolved = () => {} } = $props();
   let busy = $state(false);
+  let planId = $state(null);
   let status = $state(untrack(() => action.status));
 
   async function resolve(ok) {
     busy = true;
     try {
-      await api.post(`/api/coach/actions/${action.id}/${ok ? 'confirm' : 'reject'}`);
+      const res = await api.post(`/api/coach/actions/${action.id}/${ok ? 'confirm' : 'reject'}`);
       status = ok ? 'confirmed' : 'rejected';
       toast(ok ? 'Übernommen ✓' : 'Verworfen', ok ? 'success' : 'info');
+      if (ok && res?.result?.plan_id) planId = res.result.plan_id;
       onresolved(status);
     } catch (e) { toastError(e); } finally { busy = false; }
   }
   const diff = $derived(action.diff || {});
-  function planChanges() {
-    const out = [];
-    (diff.after || []).forEach((day, i) => {
-      const before = (diff.before || [])[i] || { exercises: [] };
-      const b = before.exercises.map((e) => `${e.exercise} ${e.sets}×${e.rep_min}–${e.rep_max}`);
-      const a = day.exercises.map((e) => `${e.exercise} ${e.sets}×${e.rep_min}–${e.rep_max}`);
-      if (JSON.stringify(a) !== JSON.stringify(b)) out.push({ day: day.day, removed: b.filter((x) => !a.includes(x)), added: a.filter((x) => !b.includes(x)) });
-    });
-    return out;
-  }
 </script>
 
 <div class="pop rounded-2xl border border-accent/40 bg-accent/5 p-3 text-sm">
@@ -53,13 +46,13 @@
     </div>
     {#if diff.clamped}<p class="mt-2 text-warn">Auf die Untergrenzen ({diff.floors?.kcal} kcal, {diff.floors?.protein} g Protein) angehoben.</p>{/if}
   {:else if action.tool === 'propose_plan_changes'}
-    {#each planChanges() as ch}
-      <div class="mb-1.5"><div class="font-medium">{ch.day}</div>
-        {#each ch.removed as r}<div class="text-danger">− {r}</div>{/each}
-        {#each ch.added as a}<div class="text-accent">+ {a}</div>{/each}
-      </div>
-    {/each}
-    {#each diff.warnings || [] as w}<p class="text-warn">{w}</p>{/each}
+    {#if diff.reason}<p class="mb-2 text-muted">{diff.reason}</p>{/if}
+    <PlanDiff before={diff.before} after={diff.after} />
+    {#each diff.warnings || [] as w}<p class="text-warn">⚠ {w}</p>{/each}
+  {:else if action.tool === 'propose_new_plan'}
+    {#if diff.reason}<p class="mb-2 text-muted">{diff.reason}</p>{/if}
+    <PlanDiff after={diff.after} />
+    {#each diff.warnings || [] as w}<p class="text-warn">⚠ {w}</p>{/each}
   {:else if action.tool === 'propose_workout'}
     <ul>{#each diff.exercises || [] as e}<li>{e.exercise}: {e.sets}×{e.reps}{e.weight_kg ? ` @ ${e.weight_kg} kg` : ''}</li>{/each}</ul>
   {:else if action.tool === 'propose_profile_update'}
@@ -72,6 +65,7 @@
       <button class="btn-soft btn-sm flex-1" disabled={busy} onclick={() => resolve(false)}>Verwerfen</button>
     </div>
   {:else}
-    <p class="mt-2 text-xs text-muted">{status === 'confirmed' ? '✓ Übernommen' : status === 'rejected' ? 'Verworfen' : status}</p>
+    <p class="mt-2 text-xs text-muted">{status === 'confirmed' ? '✓ Übernommen' : status === 'rejected' ? 'Verworfen' : status === 'expired' ? 'Abgelaufen' : status}
+      {#if status === 'confirmed' && (planId || action.args?.plan_id)} · <a class="text-accent" href="/training/plans/{planId || action.args.plan_id}">Plan ansehen</a>{/if}</p>
   {/if}
 </div>

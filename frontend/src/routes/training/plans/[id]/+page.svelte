@@ -12,6 +12,8 @@
   import Sheet from '$components/Sheet.svelte';
   import Skeleton from '$components/Skeleton.svelte';
   import ShareSheet from '$components/ShareSheet.svelte';
+  import ActionCard from '$components/ActionCard.svelte';
+  import { md } from '$lib/markdown.js';
 
   let plan = $state(null);
   let edit = $state(page.url.searchParams.get('edit') === '1');
@@ -21,9 +23,29 @@
   let shareOpen = $state(false);
   const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
-  onMount(async () => {
+  let proposals = $state([]);
+  let coach = $state({ open: false, request: '', busy: false, text: '', actions: [] });
+  const IDEAS = ['Ich habe nur noch 3 Tage pro Woche', 'Max. 45 Minuten pro Einheit', 'Mehr Fokus auf Arme und Schultern',
+    'Mein Knie schonen', 'Nur Kurzhanteln zu Hause', 'Deload-Woche einplanen', 'Analysiere meinen Fortschritt und optimiere'];
+
+  async function load() {
     plan = await api.get(`/api/plans/${page.params.id}`);
-  });
+    if (plan.own) proposals = await api.get(`/api/coach/actions?plan_id=${plan.id}`).catch(() => []);
+  }
+  onMount(load);
+
+  async function askCoach() {
+    coach.busy = true; coach.text = ''; coach.actions = [];
+    try {
+      const r = await api.post('/api/coach/plan-review', { plan_id: plan.id, request: coach.request });
+      coach.text = r.text; coach.actions = r.actions;
+      if (!r.actions.length) toast('Der Coach hat keine Änderung vorgeschlagen');
+    } catch (e) { toastError(e); } finally { coach.busy = false; }
+  }
+  async function resolved(status) {
+    if (status === 'confirmed') { coach.open = false; await load(); }
+    else proposals = await api.get(`/api/coach/actions?plan_id=${plan.id}`).catch(() => []);
+  }
 
   function bindSortable(node, { list, onmove }) {
     const s = Sortable.create(node, { animation: 180, handle: '.drag', delay: 60, delayOnTouchOnly: true,
@@ -120,6 +142,14 @@
         <button class="btn-soft" onclick={copy} aria-label="Kopieren"><Icon name="copy" /></button>
         {#if plan.own}<button class="btn-soft text-danger" onclick={del} aria-label="Löschen"><Icon name="trash" /></button>{/if}
       </div>
+      {#if plan.own}
+        <button class="btn-soft w-full border border-accent/40 text-accent" onclick={() => (coach = { ...coach, open: true })}><Icon name="sparkles" size={18} /> Mit Coach bearbeiten</button>
+      {:else}
+        <p class="text-xs text-muted">Zum Bearbeiten (auch mit dem Coach) zuerst aktivieren oder kopieren – so entsteht deine eigene Version.</p>
+      {/if}
+      {#each proposals as a (a.id)}
+        <div><p class="section-title mt-2">Vorschlag vom Coach</p><ActionCard action={a} onresolved={resolved} /></div>
+      {/each}
       {#if isAdmin() && plan.own}<button class="btn-ghost btn-sm text-muted" onclick={makeGlobal}>Als globale Vorlage bereitstellen</button>{/if}
     {/if}
 
@@ -183,3 +213,15 @@
   {/each}
 </Sheet>
 {#if plan}<ShareSheet bind:open={shareOpen} type="plan" id={plan.id} />{/if}
+
+<Sheet bind:open={coach.open} title="Plan mit Coach bearbeiten" full>
+  <div class="space-y-3">
+    <p class="text-sm text-muted">Beschreibe, was sich ändern soll – der Coach kennt deinen Plan und deine letzten Trainings.
+      Du siehst danach ein Vorher/Nachher und entscheidest selbst.</p>
+    <div class="flex flex-wrap gap-1.5">{#each IDEAS as i}<button class="chip text-xs" onclick={() => (coach.request = i)}>{i}</button>{/each}</div>
+    <textarea class="input" rows="3" placeholder="z. B. Ersetze Kniebeugen durch etwas Knieschonendes und mache Freitag zum Armtag" bind:value={coach.request}></textarea>
+    <button class="btn-primary w-full" disabled={coach.busy} onclick={askCoach}><Icon name="sparkles" size={18} /> {coach.busy ? 'Coach überarbeitet den Plan …' : 'Vorschlag erstellen'}</button>
+    {#if coach.text}<div class="rounded-2xl bg-surface-2 p-3 text-sm leading-relaxed">{@html md(coach.text)}</div>{/if}
+    {#each coach.actions as a (a.id)}<ActionCard action={a} onresolved={resolved} />{/each}
+  </div>
+</Sheet>

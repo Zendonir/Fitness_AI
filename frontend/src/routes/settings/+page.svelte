@@ -91,7 +91,7 @@
   }
   const ACCENTS = ['#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#ef4444', '#14b8a6', '#eab308'];
   const NUTRIENTS = [['kcal', 'Kalorien'], ['protein', 'Protein'], ['carbs', 'Kohlenhydrate'], ['fat', 'Fett'], ['fiber', 'Ballaststoffe'], ['water', 'Wasser']];
-  const PROACTIVE = [['plateau', 'Plateau erkannt'], ['protein_low', 'Protein mehrere Tage unter Ziel'], ['missed_training', 'Training ausgelassen'], ['new_pr', 'Neue PRs'], ['deload', 'Deload empfohlen']];
+  const PROACTIVE = [['plan_suggestions', 'Wöchentliche Planvorschläge des Coaches'], ['plateau', 'Plateau erkannt'], ['protein_low', 'Protein mehrere Tage unter Ziel'], ['missed_training', 'Training ausgelassen'], ['new_pr', 'Neue PRs'], ['deload', 'Deload empfohlen']];
   const TASKS = { chat: 'Chat', vision: 'Foto-Erkennung', weekly_report: 'Wochen-/Monatsbericht', summary: 'Zusammenfassungen', briefing: 'Briefings', meal_plan: 'Mahlzeitenplanung' };
 </script>
 
