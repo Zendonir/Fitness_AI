@@ -1,6 +1,8 @@
-# syntax=docker/dockerfile:1
+ARG NODE_IMAGE=node:22-bookworm-slim
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm
+
 # ---------------------------------------------------------------- 1) Frontend bauen
-FROM node:22-bookworm-slim AS frontend
+FROM ${NODE_IMAGE} AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -8,15 +10,13 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---------------------------------------------------------------- 2) Python-Abhängigkeiten
-FROM python:3.12-slim-bookworm AS pydeps
+FROM ${PYTHON_IMAGE} AS pydeps
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.txt /tmp/requirements.txt
 RUN python -m venv /opt/venv && /opt/venv/bin/pip install -r /tmp/requirements.txt
 
 # ---------------------------------------------------------------- 3) Laufzeit
-FROM python:3.12-slim-bookworm AS runtime
+FROM ${PYTHON_IMAGE} AS runtime
 ARG VERSION=1.0.0
 LABEL org.opencontainers.image.title="FitForge" org.opencontainers.image.version=$VERSION
 

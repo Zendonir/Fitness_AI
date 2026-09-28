@@ -10,6 +10,7 @@ if [ "$(id -u)" = "0" ]; then
   if [ "$(id -u fitforge)" != "$PUID" ]; then usermod -o -u "$PUID" fitforge; fi
   mkdir -p "$DATA_DIR/uploads" "$DATA_DIR/backups"
   chown fitforge:fitforge "$DATA_DIR" "$DATA_DIR/uploads" "$DATA_DIR/backups"
+  export HOME=/app
   exec setpriv --reuid="$PUID" --regid="$PGID" --init-groups "$0" "$@"
 fi
 
