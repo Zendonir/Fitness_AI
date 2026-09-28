@@ -34,18 +34,24 @@ Architektur, Datenmodell und Rechtekonzept stehen in [`docs/ARCHITECTURE.md`](do
 
 ## 1. Schnellstart
 
-Voraussetzungen: Docker mit Compose v2.
+**TrueNAS (am einfachsten):** Den Inhalt von [`truenas/fitforge-truenas.yaml`](truenas/fitforge-truenas.yaml) unter
+*Apps → Discover Apps → ⋮ → Install via YAML* einfügen und installieren. Mehr ist nicht nötig:
+
+- Alle Schlüssel (App-Secret, Fernet-Master-Key, VAPID für Push, Datenbank-Passwort) erzeugt der Container `fitforge-init` beim ersten Start selbst.
+- Das erste Konto, das du im Browser registrierst, wird Administrator.
+- Die App ist unter `http://<TrueNAS-IP>:30850` erreichbar. In Nginx Proxy Manager legst du einen Proxy-Host auf `<TrueNAS-IP>:30850` an.
+- Die externe Adresse erkennt die App automatisch aus dem Reverse Proxy; `PUBLIC_URL` ist optional.
+
+**Mit docker compose und eigener LAN-IP (macvlan):**
 
 ```bash
 git clone https://github.com/zendonir/fitness_ai.git fitforge && cd fitforge
-cp .env.example .env
-
-# Schlüssel erzeugen und die Ausgabe in die .env übernehmen
-docker run --rm ghcr.io/zendonir/fitness_ai:latest python -m app.cli gen-keys
+cp .env.example .env     # nur Netzwerk (MACVLAN_PARENT, LAN_SUBNET, APP_IP …) und DATA_ROOT anpassen
+docker compose up -d
 ```
 
 Das Image `ghcr.io/zendonir/fitness_ai` baut die GitHub Action `.github/workflows/docker.yml` für amd64 und arm64.
-Alternativ baust du es lokal: `docker compose build`. Mehr dazu unter [Updates](#11-updates).
+Alternativ baust du es lokal: `docker compose build`.
 
 **Zum Testen ohne macvlan**, direkt auf Port 8000:
 
@@ -54,13 +60,7 @@ docker compose -f docker-compose.yml -f docker-compose.bridge.yml up -d
 # → http://<server-ip>:8000
 ```
 
-**Produktiv mit macvlan** (eigene LAN-IP): zuerst `MACVLAN_PARENT`, `LAN_SUBNET`, `LAN_GATEWAY`, `LAN_IP_RANGE` und `APP_IP` in der `.env` setzen, dann:
-
-```bash
-docker compose up -d
-```
-
-Die App startet vier Container:
+Die App startet vier Container und einen einmaligen Init-Container für die Schlüssel:
 
 | Container | Aufgabe |
 |---|---|
@@ -69,7 +69,10 @@ Die App startet vier Container:
 | `fitforge-postgres` | PostgreSQL 16 |
 | `fitforge-redis` | Redis 7 (Job-Queue) |
 
-Alle Daten liegen im Dataset `DATA_ROOT`, standardmäßig `/mnt/tank/apps/fitforge`, in den Unterordnern `postgres/`, `redis/`, `uploads/` und `backups/`.
+Mit `docker-compose.yml` liegen alle Daten im Dataset `DATA_ROOT`, standardmäßig `/mnt/tank/apps/fitforge`, in den Unterordnern `secrets/`, `postgres/`, `redis/`, `uploads/` und `backups/`.
+Die Ordner legt Docker automatisch an. Die TrueNAS-YAML nutzt stattdessen Docker-Volumes; bei Bedarf stellst du sie im Kommentar der Datei auf ein Dataset um.
+
+**Wichtig:** Sichere den Ordner bzw. das Volume `secrets`. Der `fernet_key` darin entschlüsselt gespeicherte API-Keys und 2FA-Secrets.
 
 ---
 
@@ -100,7 +103,7 @@ Getestet mit TrueNAS Scale ab 24.10 („Electric Eel“), der Apps auf Docker-Co
 
 ### 2.3 App installieren
 
-**Variante A: Custom App per YAML (empfohlen)** – fertige Vorlage: [`truenas/fitforge-truenas.yaml`](truenas/fitforge-truenas.yaml), nur die mit `ANPASSEN` markierten Werte ändern.
+**Variante A: Custom App per YAML (empfohlen)** – [`truenas/fitforge-truenas.yaml`](truenas/fitforge-truenas.yaml) unverändert einfügen, fertig. Die Schritte unten brauchst du nur für die macvlan-Variante mit `.env`.
 
 1. *Apps → Discover Apps → ⋮ → Install via YAML*.
 2. Name: `fitforge`.
@@ -179,7 +182,8 @@ proxy_buffering off;
 proxy_read_timeout 300s;
 ```
 
-Setze `PUBLIC_URL=https://fitforge.deine-domain.de` in der `.env` **exakt** so, ohne Slash am Ende. Passkeys, Links und OIDC hängen davon ab.
+Die App übernimmt die Domain automatisch aus den Proxy-Headern (`X-Forwarded-Proto`, `Host`); NPM sendet sie standardmäßig.
+Für OIDC oder wenn du die Adresse fest vorgeben willst, setze `PUBLIC_URL=https://fitforge.deine-domain.de`, ohne Slash am Ende.
 
 ---
 
@@ -197,9 +201,8 @@ Das Let's-Encrypt-Zertifikat aus der DNS-Challenge ist auch im LAN gültig. Das 
 
 ## 5. Erster Admin-Login & Benutzer einladen
 
-1. Rufe `https://fitforge.deine-domain.de` auf.
-   - Sind `ADMIN_EMAIL` und `ADMIN_PASSWORD` in der `.env` gesetzt, meldest du dich damit an. Entferne danach das Passwort aus der `.env`.
-   - Ohne diese Werte zeigt die App „Ersten Admin anlegen“: Das erste registrierte Konto wird automatisch Admin.
+1. Rufe `https://fitforge.deine-domain.de` auf. Die App zeigt „Ersten Admin anlegen“: Das erste registrierte Konto wird automatisch Admin.
+   Optional kannst du den Admin stattdessen per `ADMIN_EMAIL` und `ADMIN_PASSWORD` in der `.env` vorgeben.
 2. Der **Onboarding-Assistent** fragt Ziele, Körperdaten, Trainingsplan, Coach-Profil, KI und Datenfreigaben ab.
 3. **Benutzer einladen:** *Profil → Administration → Einladungen*.
    Rolle (Benutzer, Trainer oder Admin) und Gültigkeit wählen, dann *Einladungslink erzeugen*. Der Link landet in der Zwischenablage; schicke ihn per Messenger.
@@ -223,8 +226,7 @@ Der Trainer sieht dann unter *Profil → Meine Athleten* dessen Daten nur lesend
    Einträge ohne Verbindung landen in einer Warteschlange und werden automatisch synchronisiert.
 4. **Push aktivieren** (ab iOS 16.4, nur in der installierten PWA):
    *Profil → Benachrichtigungen → Push auf diesem Gerät* einschalten und die Rückfrage mit *Erlauben* bestätigen, dann *Test-Benachrichtigung* senden.
-   Voraussetzung: `VAPID_PUBLIC_KEY` und `VAPID_PRIVATE_KEY` sind gesetzt (`app.cli gen-keys`).
-   Ändere die VAPID-Schlüssel danach nicht mehr, sonst müssen alle Geräte Push neu aktivieren.
+   Die VAPID-Schlüssel erzeugt die App automatisch. Lösche sie nicht aus `secrets/`, sonst müssen alle Geräte Push neu aktivieren.
 5. **Face ID / Passkey:** *Einstellungen → Sicherheit → Passkey hinzufügen*. Danach meldest du dich per Face ID an.
 6. Der Pausen-Timer meldet sich per Push, wenn die App im Hintergrund ist.
    iOS unterstützt keine Vibration im Browser; die Benachrichtigung ersetzt sie.
@@ -360,7 +362,7 @@ docker compose start app worker
 
 Das Backup enthält `DROP … IF EXISTS`, ersetzt also den aktuellen Stand.
 Fotos stellst du bei Bedarf aus dem Snapshot von `uploads/` wieder her.
-Wichtig: Nutze dieselben `SECRET_KEY` und `FERNET_KEY` wie beim Backup.
+Wichtig: Stelle auch den Ordner bzw. das Volume `secrets/` wieder her, oder nutze dieselben `SECRET_KEY` und `FERNET_KEY` wie beim Backup.
 
 **Benutzer-Export:** Jeder Benutzer kann unter *Einstellungen → Daten & Konto* alle Daten als JSON oder als CSV-ZIP exportieren und in eine andere FitForge-Instanz importieren.
 
@@ -434,8 +436,8 @@ docker-compose.yml, docker-compose.bridge.yml, .env.example
 | Problem | Lösung |
 |---|---|
 | App vom TrueNAS-Host aus nicht erreichbar | Das ist die normale macvlan-Isolation. Teste von einem anderen Gerät oder nutze den Weg über NPM/Bridge. |
-| Passkey-Fehler „origin“ | `PUBLIC_URL` muss exakt der aufgerufenen HTTPS-Adresse entsprechen. |
-| Push kommt nicht an (iPhone) | Die App muss über „Zum Home-Bildschirm“ installiert sein (iOS 16.4+), VAPID-Keys müssen gesetzt sein und der Worker muss laufen. |
+| Passkey-Fehler „origin“ | App über die HTTPS-Domain aufrufen (nicht per IP); ggf. `PUBLIC_URL` exakt auf diese Adresse setzen. |
+| Push kommt nicht an (iPhone) | Die App muss über HTTPS und „Zum Home-Bildschirm“ installiert sein (iOS 16.4+), und der Worker muss laufen. |
 | Chat antwortet erst am Ende | In NPM `proxy_buffering off;` setzen (siehe 3.2). |
 | Kamera für Barcode startet nicht | Nur über HTTPS möglich; Kamerazugriff in den iOS-Einstellungen für Safari erlauben. |
 | „KI nicht verfügbar“ | Key hinterlegen (Admin oder eigener Key), KI global und im Profil aktivieren, Monatslimit prüfen. |

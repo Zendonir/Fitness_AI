@@ -28,6 +28,7 @@ from webauthn.helpers.structs import (
 
 from app.core.config import settings
 from app.core.deps import DB, SESSION_COOKIE, CurrentUser, client_ip
+from app.core.urls import base_url, rp_id, secure_cookies
 from app.core.security import (
     decrypt,
     encrypt,
@@ -90,7 +91,7 @@ async def create_session(db: DB, user: User, request: Request, response: Respons
         max_age=settings.session_days * 86400,
         httponly=True,
         samesite="lax",
-        secure=settings.secure_cookies,
+        secure=secure_cookies(request),
         path="/",
     )
 
@@ -109,10 +110,10 @@ def _unsign(token: str | None) -> dict[str, Any]:
         raise HTTPException(400, "Ungültige oder abgelaufene Anfrage") from e
 
 
-def _set_challenge(response: Response, data: dict[str, Any]) -> None:
+def _set_challenge(request: Request, response: Response, data: dict[str, Any]) -> None:
     response.set_cookie(
         CHALLENGE_COOKIE, _sign(data), max_age=300, httponly=True, samesite="lax",
-        secure=settings.secure_cookies, path="/api/auth",
+        secure=secure_cookies(request), path="/api/auth",
     )
 
 
@@ -322,8 +323,8 @@ async def totp_disable(body: CodeIn, user: CurrentUser, db: DB) -> dict[str, boo
 
 
 # ---------------------------------------------------------------- Passkeys (WebAuthn)
-def _origin() -> str:
-    return settings.public_url.rstrip("/")
+def _origin(request: Request) -> str:
+    return base_url(request)
 
 
 @router.get("/passkeys")
@@ -343,10 +344,10 @@ async def delete_passkey(cred_id: int, user: CurrentUser, db: DB) -> dict[str, b
 
 
 @router.post("/passkey/register/options")
-async def passkey_register_options(user: CurrentUser, response: Response, db: DB) -> Any:
+async def passkey_register_options(request: Request, user: CurrentUser, response: Response, db: DB) -> Any:
     existing = (await db.exec(select(WebAuthnCredential).where(WebAuthnCredential.user_id == user.id))).all()
     opts = generate_registration_options(
-        rp_id=settings.rp_id,
+        rp_id=rp_id(request),
         rp_name=settings.webauthn_rp_name,
         user_name=user.email,
         user_id=str(user.id).encode(),
@@ -357,7 +358,7 @@ async def passkey_register_options(user: CurrentUser, response: Response, db: DB
         ),
         exclude_credentials=[PublicKeyCredentialDescriptor(id=base64url_to_bytes(c.credential_id)) for c in existing],
     )
-    _set_challenge(response, {"c": bytes_to_base64url(opts.challenge), "u": user.id, "t": "reg"})
+    _set_challenge(request, response, {"c": bytes_to_base64url(opts.challenge), "u": user.id, "t": "reg"})
     return json.loads(options_to_json(opts))
 
 
@@ -375,8 +376,8 @@ async def passkey_register_verify(body: PasskeyVerifyIn, request: Request, user:
         ver = verify_registration_response(
             credential=body.credential,
             expected_challenge=base64url_to_bytes(ch["c"]),
-            expected_rp_id=settings.rp_id,
-            expected_origin=_origin(),
+            expected_rp_id=rp_id(request),
+            expected_origin=_origin(request),
         )
     except Exception as e:  # noqa: BLE001 - webauthn wirft diverse Fehlerklassen
         raise HTTPException(400, f"Passkey-Registrierung fehlgeschlagen: {e}") from e
@@ -395,11 +396,11 @@ async def passkey_register_verify(body: PasskeyVerifyIn, request: Request, user:
 
 
 @router.post("/passkey/login/options")
-async def passkey_login_options(response: Response) -> Any:
+async def passkey_login_options(request: Request, response: Response) -> Any:
     opts = generate_authentication_options(
-        rp_id=settings.rp_id, user_verification=UserVerificationRequirement.PREFERRED
+        rp_id=rp_id(request), user_verification=UserVerificationRequirement.PREFERRED
     )
-    _set_challenge(response, {"c": bytes_to_base64url(opts.challenge), "t": "auth"})
+    _set_challenge(request, response, {"c": bytes_to_base64url(opts.challenge), "t": "auth"})
     return json.loads(options_to_json(opts))
 
 
@@ -420,8 +421,8 @@ async def passkey_login_verify(body: PasskeyLoginIn, request: Request, response:
         ver = verify_authentication_response(
             credential=body.credential,
             expected_challenge=base64url_to_bytes(ch["c"]),
-            expected_rp_id=settings.rp_id,
-            expected_origin=_origin(),
+            expected_rp_id=rp_id(request),
+            expected_origin=_origin(request),
             credential_public_key=base64url_to_bytes(row.public_key),
             credential_current_sign_count=row.sign_count,
         )
@@ -452,12 +453,12 @@ async def _oidc_meta() -> dict[str, Any]:
     return _oidc_cache["meta"]
 
 
-def _oidc_redirect_uri() -> str:
-    return _origin() + "/api/auth/oidc/callback"
+def _oidc_redirect_uri(request: Request) -> str:
+    return _origin(request) + "/api/auth/oidc/callback"
 
 
 @router.get("/oidc/login")
-async def oidc_login() -> RedirectResponse:
+async def oidc_login(request: Request) -> RedirectResponse:
     if not settings.oidc_enabled:
         raise HTTPException(404, "OIDC nicht konfiguriert")
     meta = await _oidc_meta()
@@ -465,7 +466,7 @@ async def oidc_login() -> RedirectResponse:
     params = {
         "response_type": "code",
         "client_id": settings.oidc_client_id,
-        "redirect_uri": _oidc_redirect_uri(),
+        "redirect_uri": _oidc_redirect_uri(request),
         "scope": "openid email profile groups",
         "state": state,
         "nonce": nonce,
@@ -473,7 +474,7 @@ async def oidc_login() -> RedirectResponse:
     resp = RedirectResponse(meta["authorization_endpoint"] + "?" + urlencode(params))
     resp.set_cookie(
         "ff_oidc", _sign({"s": state, "n": nonce}, minutes=10), max_age=600, httponly=True,
-        samesite="lax", secure=settings.secure_cookies, path="/api/auth/oidc",
+        samesite="lax", secure=secure_cookies(request), path="/api/auth/oidc",
     )
     return resp
 
@@ -492,7 +493,7 @@ async def oidc_callback(request: Request, db: DB, code: str = "", state: str = "
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": _oidc_redirect_uri(),
+                "redirect_uri": _oidc_redirect_uri(request),
                 "client_id": settings.oidc_client_id,
                 "client_secret": settings.oidc_client_secret,
             },

@@ -1,15 +1,16 @@
 # FitForge – self-hosted Trainings- & Ernährungstracker mit KI-Coach
-# Start:  cp .env.example .env  (Werte anpassen)  →  docker compose up -d
+# Start:  cp .env.example .env  (Netzwerk anpassen)  →  docker compose up -d
+# Schlüssel (SECRET_KEY, FERNET_KEY, VAPID, DB-Passwort) erzeugt der Init-Container automatisch
+# in DATA_ROOT/secrets – Werte in der .env überschreiben sie nur, falls gesetzt.
 name: fitforge
 
 x-app-env: &app-env
   TZ: ${TZ:-Europe/Berlin}
   PUID: ${PUID:-568}
   PGID: ${PGID:-568}
-  PUBLIC_URL: ${PUBLIC_URL}
-  SECRET_KEY: ${SECRET_KEY}
-  FERNET_KEY: ${FERNET_KEY}
-  DATABASE_URL: postgresql+asyncpg://fitforge:${POSTGRES_PASSWORD}@postgres:5432/fitforge
+  PUBLIC_URL: ${PUBLIC_URL:-}
+  SECRET_KEY: ${SECRET_KEY:-}
+  FERNET_KEY: ${FERNET_KEY:-}
   REDIS_URL: redis://redis:6379/0
   ADMIN_EMAIL: ${ADMIN_EMAIL:-}
   ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -37,6 +38,15 @@ x-app-env: &app-env
   BACKUP_KEEP_MONTHLY: ${BACKUP_KEEP_MONTHLY:-6}
 
 services:
+  init:
+    image: ${FITFORGE_IMAGE:-ghcr.io/zendonir/fitness_ai:latest}
+    container_name: fitforge-init
+    restart: "no"
+    command: ["init"]
+    volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/secrets:/data/secrets
+    network_mode: none
+
   app:
     image: ${FITFORGE_IMAGE:-ghcr.io/zendonir/fitness_ai:latest}
     build: .
@@ -45,6 +55,7 @@ services:
     command: ["app"]
     environment: *app-env
     volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/secrets:/data/secrets
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/uploads:/data/uploads
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/backups:/data/backups
     depends_on:
@@ -69,6 +80,7 @@ services:
     command: ["worker"]
     environment: *app-env
     volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/secrets:/data/secrets
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/uploads:/data/uploads
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/backups:/data/backups
     depends_on:
@@ -91,10 +103,13 @@ services:
       TZ: ${TZ:-Europe/Berlin}
       POSTGRES_DB: fitforge
       POSTGRES_USER: fitforge
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /secrets/postgres_password
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/secrets:/secrets:ro
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/postgres:/var/lib/postgresql/data
+    depends_on:
+      init: { condition: service_completed_successfully }
     networks: [internal]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fitforge -d fitforge"]

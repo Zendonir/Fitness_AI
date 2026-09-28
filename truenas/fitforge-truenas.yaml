@@ -1,86 +1,36 @@
-# FitForge – TrueNAS Scale "Apps → Discover Apps → ⋮ → Install via YAML"
-# Alle Stellen mit "ANPASSEN" ändern. Schlüssel erzeugen:
-#   docker run --rm ghcr.io/zendonir/fitness_ai:latest python -m app.cli gen-keys
-# Vorher Ordner anlegen:
-#   mkdir -p /mnt/tank/apps/fitforge/{postgres,redis,uploads,backups}
-#   chown -R 568:568 /mnt/tank/apps/fitforge/{uploads,backups}
+# FitForge – TrueNAS Scale: Apps → Discover Apps → ⋮ → "Install via YAML"
+# Einfach komplett einfügen – keine Anpassungen nötig.
+#  • Schlüssel (App, Verschlüsselung, Web-Push, Datenbank-Passwort) erzeugt der Container
+#    "fitforge-init" beim ersten Start selbst und speichert sie im Volume "secrets".
+#  • Das erste Konto, das du im Browser registrierst, wird Administrator.
+#  • Erreichbar unter http://<TrueNAS-IP>:30850 – für HTTPS in Nginx Proxy Manager
+#    einen Proxy-Host auf <TrueNAS-IP>:30850 anlegen (Websockets an, "proxy_buffering off;").
+#  • KI-Keys, Registrierung usw. stellst du danach im Admin-Panel ein.
+# Optional: Daten statt in Docker-Volumes in ein Dataset legen → unten bei "volumes:" die
+# Zeilen mit /mnt/... einkommentieren und die Volume-Zeilen darüber entfernen.
 
-x-fitforge-env: &fitforge-env
-  TZ: Europe/Berlin
-  PUID: "568"
-  PGID: "568"
-  PUBLIC_URL: https://fitforge.example.de                 # ANPASSEN – externe HTTPS-Adresse, ohne / am Ende
-  SECRET_KEY: HIER_SECRET_KEY_EINTRAGEN                   # ANPASSEN
-  FERNET_KEY: HIER_FERNET_KEY_EINTRAGEN                   # ANPASSEN – sicher aufbewahren!
-  DATABASE_URL: postgresql+asyncpg://fitforge:HIER_POSTGRES_PASSWORT@postgres:5432/fitforge   # ANPASSEN (gleiches Passwort wie unten)
-  REDIS_URL: redis://redis:6379/0
-  ADMIN_EMAIL: admin@example.de                           # ANPASSEN – erster Admin
-  ADMIN_PASSWORD: HIER_ADMIN_PASSWORT                     # ANPASSEN – min. 10 Zeichen, nach erstem Login entfernen
-  AI_ENABLED: "true"
-  ANTHROPIC_API_KEY: ""                                   # optional, auch im Admin-Panel setzbar
-  OPENAI_API_KEY: ""                                      # optional
-  OLLAMA_BASE_URL: ""                                     # optional, z. B. http://192.168.1.50:11434
-  DEFAULT_AI_PROVIDER: anthropic
-  DEFAULT_ANTHROPIC_MODEL: claude-opus-5
-  DEFAULT_OPENAI_MODEL: gpt-5
-  AI_DEFAULT_MONTHLY_LIMIT_USD: "10"
-  VAPID_PUBLIC_KEY: HIER_VAPID_PUBLIC_KEY                 # ANPASSEN – für Web-Push
-  VAPID_PRIVATE_KEY: HIER_VAPID_PRIVATE_KEY               # ANPASSEN
-  VAPID_SUBJECT: mailto:admin@example.de                  # ANPASSEN
-  OIDC_ISSUER: ""                                         # optional (Authentik)
-  OIDC_CLIENT_ID: ""
-  OIDC_CLIENT_SECRET: ""
-  OIDC_DISPLAY_NAME: Authentik
-  BACKUP_HOUR: "3"
-  BACKUP_KEEP_DAILY: "7"
-  BACKUP_KEEP_WEEKLY: "4"
-  BACKUP_KEEP_MONTHLY: "6"
+x-fitforge: &fitforge
+  image: ghcr.io/zendonir/fitness_ai:latest
+  restart: unless-stopped
+  environment:
+    TZ: Europe/Berlin
+    PUID: "568"
+    PGID: "568"
+    REDIS_URL: redis://redis:6379/0
+  volumes:
+    - secrets:/data/secrets
+    - uploads:/data/uploads
+    - backups:/data/backups
+    # - /mnt/tank/apps/fitforge/secrets:/data/secrets
+    # - /mnt/tank/apps/fitforge/uploads:/data/uploads
+    # - /mnt/tank/apps/fitforge/backups:/data/backups
 
 services:
-  app:
-    image: ghcr.io/zendonir/fitness_ai:latest
-    container_name: fitforge-app
-    restart: unless-stopped
-    command: ["app"]
-    environment: *fitforge-env
-    volumes:
-      - /mnt/tank/apps/fitforge/uploads:/data/uploads      # ANPASSEN falls anderer Pool
-      - /mnt/tank/apps/fitforge/backups:/data/backups
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-    networks:
-      lan:
-        ipv4_address: 192.168.1.241                        # ANPASSEN – feste IP der App im LAN
-      proxy: {}
-      internal: {}
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 60s
-
-  worker:
-    image: ghcr.io/zendonir/fitness_ai:latest
-    container_name: fitforge-worker
-    restart: unless-stopped
-    command: ["worker"]
-    environment: *fitforge-env
-    volumes:
-      - /mnt/tank/apps/fitforge/uploads:/data/uploads
-      - /mnt/tank/apps/fitforge/backups:/data/backups
-    depends_on:
-      app: { condition: service_healthy }
-    networks:
-      proxy: {}
-      internal: {}
-    healthcheck:
-      test: ["CMD", "arq", "app.worker.WorkerSettings", "--check"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+  init:
+    <<: *fitforge
+    container_name: fitforge-init
+    restart: "no"
+    command: ["init"]
 
   postgres:
     image: postgres:16-alpine
@@ -90,11 +40,15 @@ services:
       TZ: Europe/Berlin
       POSTGRES_DB: fitforge
       POSTGRES_USER: fitforge
-      POSTGRES_PASSWORD: HIER_POSTGRES_PASSWORT            # ANPASSEN (gleich wie in DATABASE_URL)
+      POSTGRES_PASSWORD_FILE: /secrets/postgres_password
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - /mnt/tank/apps/fitforge/postgres:/var/lib/postgresql/data
-    networks: [internal]
+      - secrets:/secrets:ro
+      - postgres:/var/lib/postgresql/data
+      # - /mnt/tank/apps/fitforge/secrets:/secrets:ro
+      # - /mnt/tank/apps/fitforge/postgres:/var/lib/postgresql/data
+    depends_on:
+      init: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fitforge -d fitforge"]
       interval: 10s
@@ -107,28 +61,45 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--save", "300", "10"]
     volumes:
-      - /mnt/tank/apps/fitforge/redis:/data
-    networks: [internal]
+      - redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-networks:
-  lan:
-    driver: macvlan
-    driver_opts:
-      parent: eno1                                         # ANPASSEN – Netzwerkkarte (Network → Interfaces), ggf. br0
-    ipam:
-      config:
-        - subnet: 192.168.1.0/24                           # ANPASSEN
-          gateway: 192.168.1.1                             # ANPASSEN
-          ip_range: 192.168.1.240/29                       # ANPASSEN – außerhalb des DHCP-Pools
-  proxy:
-    name: fitforge_proxy
-    driver: bridge
-  internal:
-    name: fitforge_internal
-    driver: bridge
-    internal: true
+  app:
+    <<: *fitforge
+    container_name: fitforge-app
+    command: ["app"]
+    ports:
+      - "30850:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  worker:
+    <<: *fitforge
+    container_name: fitforge-worker
+    command: ["worker"]
+    depends_on:
+      app: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "arq", "app.worker.WorkerSettings", "--check"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  secrets:
+  uploads:
+  backups:
+  postgres:
+  redis:

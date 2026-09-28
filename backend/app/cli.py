@@ -3,6 +3,7 @@
     python -m app.cli gen-keys                       # SECRET_KEY, FERNET_KEY und VAPID-Schlüssel erzeugen
     python -m app.cli create-admin EMAIL PASSWORT    # Admin anlegen (oder bestehenden Benutzer zum Admin machen)
     python -m app.cli reset-link EMAIL               # Passwort-Reset-Link ausgeben
+    python -m app.cli init-secrets DIR               # fehlende Schlüssel einmalig in DIR erzeugen (Docker-Init)
 """
 
 import asyncio
@@ -15,16 +16,49 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 
-def gen_keys() -> None:
+def _vapid() -> tuple[str, str]:
     key = ec.generate_private_key(ec.SECP256R1())
     priv = base64.urlsafe_b64encode(key.private_numbers().private_value.to_bytes(32, "big")).decode().rstrip("=")
     pub = base64.urlsafe_b64encode(key.public_key().public_bytes(
         serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)).decode().rstrip("=")
-    print(f"SECRET_KEY={secrets.token_urlsafe(48)}")
-    print(f"FERNET_KEY={Fernet.generate_key().decode()}")
-    print(f"VAPID_PUBLIC_KEY={pub}")
-    print(f"VAPID_PRIVATE_KEY={priv}")
-    print(f"POSTGRES_PASSWORD={secrets.token_urlsafe(24)}")
+    return pub, priv
+
+
+def new_keys() -> dict[str, str]:
+    pub, priv = _vapid()
+    return {
+        "secret_key": secrets.token_urlsafe(48),
+        "fernet_key": Fernet.generate_key().decode(),
+        "vapid_public_key": pub,
+        "vapid_private_key": priv,
+        "postgres_password": secrets.token_urlsafe(24),
+    }
+
+
+def gen_keys() -> None:
+    for k, v in new_keys().items():
+        print(f"{k.upper()}={v}")
+
+
+def init_secrets(directory: str) -> None:
+    """Erzeugt nur fehlende Schlüssel – bestehende werden nie überschrieben."""
+    import os
+    from pathlib import Path
+
+    d = Path(directory)
+    d.mkdir(parents=True, exist_ok=True)
+    created = []
+    fresh = new_keys()
+    if (d / "vapid_public_key").exists() != (d / "vapid_private_key").exists():
+        sys.exit("VAPID-Schlüssel unvollständig – bitte beide Dateien löschen oder wiederherstellen")
+    for name, value in fresh.items():
+        f = d / name
+        if not f.exists():
+            f.write_text(value)
+            created.append(name)
+        # postgres_password muss für den Postgres-Container (UID 70/999) lesbar sein
+        os.chmod(f, 0o644 if name in ("postgres_password", "vapid_public_key") else 0o600)
+    print(f"Schlüssel bereit in {d} (neu: {', '.join(created) or 'keine'})")
 
 
 async def create_admin(email: str, password: str) -> None:
@@ -71,6 +105,8 @@ def main() -> None:
         print(__doc__)
     elif args[0] == "gen-keys":
         gen_keys()
+    elif args[0] == "init-secrets" and len(args) == 2:
+        init_secrets(args[1])
     elif args[0] == "create-admin" and len(args) == 3:
         asyncio.run(create_admin(args[1], args[2]))
     elif args[0] == "reset-link" and len(args) == 2:

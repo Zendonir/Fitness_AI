@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_name: str = "FitForge"
-    public_url: str = "http://localhost:8000"
+    public_url: str = ""  # leer = aus Anfrage ableiten (Reverse Proxy)
     secret_key: str = Field(default="dev-secret-change-me", min_length=16)
     fernet_key: str = ""  # Master-Key für verschlüsselte API-Keys / TOTP-Secrets
     tz: str = "Europe/Berlin"

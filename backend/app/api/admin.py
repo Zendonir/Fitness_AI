@@ -9,6 +9,7 @@ from sqlmodel import func, select
 
 from app.core.config import settings
 from app.core.deps import DB, AdminUser, client_ip
+from app.core.urls import base_url
 from app.core.security import encrypt, hash_password, hash_token, mask_secret, new_token, decrypt, validate_password
 from app.models import (
     AIUsage,
@@ -97,7 +98,7 @@ async def create_user(body: CreateUserIn, request: Request, admin: AdminUser, db
     await init_user(db, u)
     reset_url = None
     if not body.password:
-        reset_url = await _reset_link(db, u)
+        reset_url = await _reset_link(db, u, base_url(request))
     await audit(db, "admin_user_created", actor_id=admin.id, target=u.email, ip=client_ip(request))
     return {"id": u.id, "reset_url": reset_url}
 
@@ -145,12 +146,12 @@ async def delete_user(uid: int, request: Request, admin: AdminUser, db: DB) -> d
     return {"ok": True}
 
 
-async def _reset_link(db: DB, u: User, hours: int = 48) -> str:
+async def _reset_link(db: DB, u: User, base: str = "", hours: int = 48) -> str:
     token = new_token()
     db.add(PasswordReset(token_hash=hash_token(token), user_id=u.id,
                          expires_at=datetime.now(UTC) + timedelta(hours=hours)))
     await db.commit()
-    return f"{settings.public_url.rstrip('/')}/reset?token={token}"
+    return f"{base or base_url()}/reset?token={token}"
 
 
 @router.post("/users/{uid}/reset-link")
@@ -158,7 +159,7 @@ async def reset_link(uid: int, request: Request, admin: AdminUser, db: DB) -> di
     u = await db.get(User, uid)
     if not u:
         raise HTTPException(404, "Nicht gefunden")
-    url = await _reset_link(db, u)
+    url = await _reset_link(db, u, base_url(request))
     await audit(db, "admin_reset_link", actor_id=admin.id, target=u.email, ip=client_ip(request))
     return {"url": url}
 
@@ -190,7 +191,7 @@ async def create_invite(body: InviteIn, request: Request, admin: AdminUser, db: 
     db.add(inv)
     await db.commit()
     await audit(db, "invite_created", actor_id=admin.id, target=body.email or "", ip=client_ip(request))
-    return {"id": inv.id, "url": f"{settings.public_url.rstrip('/')}/register?invite={token}", "expires_at": inv.expires_at}
+    return {"id": inv.id, "url": f"{base_url(request)}/register?invite={token}", "expires_at": inv.expires_at}
 
 
 @router.delete("/invites/{iid}")
