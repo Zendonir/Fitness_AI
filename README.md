@@ -396,7 +396,7 @@ Die App zeigt animierte GIFs aus [ExerciseGymGifsDB](https://github.com/JahelCua
 - im Live-Workout einklappbar über der Satzeingabe,
 - in Plänen und in der Übungsauswahl.
 
-Alle 80 mitgelieferten Übungen sind bereits verknüpft; bestehende Installationen bekommen die Verknüpfung beim nächsten Start automatisch. Eigene Übungen verknüpfst du unter *Übung bearbeiten → Animation wählen*. Unter *Übungen → Bibliothek* kannst du eine Übung direkt aus der Sammlung übernehmen. Muskeln und Equipment werden dabei vorausgefüllt. Unter *Einstellungen → Übungsanimationen* schaltest du die Anzeige aus.
+Die mitgelieferten Übungen sind bereits verknüpft (bis auf das Rudergerät, für das die Sammlung keine Animation hat); bestehende Installationen bekommen die Verknüpfung beim nächsten Start automatisch. Eigene Übungen verknüpfst du unter *Übung bearbeiten → Animation wählen*. Unter *Übungen → Bibliothek* kannst du eine Übung direkt aus der Sammlung übernehmen. Muskeln und Equipment werden dabei vorausgefüllt. Unter *Einstellungen → Übungsanimationen* schaltest du die Anzeige aus.
 
 **Lizenz:** Die GIFs gehören ihren jeweiligen Urhebern und sind **nicht** Teil dieses Repositorys oder des Docker-Images. Der Browser lädt sie direkt vom jsDelivr-CDN, und der Service Worker speichert angesehene Animationen für die Offline-Nutzung (max. 400 Dateien).
 
