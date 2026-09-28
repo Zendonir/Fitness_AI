@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   // Bestätigungsdialog für schreibende Coach-Aktionen (mit Diff-Anzeige)
   import { api } from '$lib/api.js';
   import { toast, toastError } from '$lib/toast.svelte.js';
@@ -6,7 +7,7 @@
   import Icon from './Icon.svelte';
   let { action, onresolved = () => {} } = $props();
   let busy = $state(false);
-  let status = $state(action.status);
+  let status = $state(untrack(() => action.status));
 
   async function resolve(ok) {
     busy = true;
@@ -17,7 +18,7 @@
       onresolved(status);
     } catch (e) { toastError(e); } finally { busy = false; }
   }
-  const diff = action.diff || {};
+  const diff = $derived(action.diff || {});
   function planChanges() {
     const out = [];
     (diff.after || []).forEach((day, i) => {
