@@ -25,6 +25,7 @@ x-fitforge: &fitforge
     # - /mnt/tank/apps/fitforge/secrets:/data/secrets
     # - /mnt/tank/apps/fitforge/uploads:/data/uploads
     # - /mnt/tank/apps/fitforge/backups:/data/backups
+    # - /mnt/tank/apps/fitforge/media-cache:/data/media-cache
 
 services:
   init:
