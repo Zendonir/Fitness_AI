@@ -13,7 +13,7 @@
   import Sheet from '$components/Sheet.svelte';
   import Stepper from '$components/Stepper.svelte';
   import ExerciseMedia from '$components/ExerciseMedia.svelte';
-  import { mediaEnabled } from '$lib/media.js';
+  import { gifUrl, mediaEnabled } from '$lib/media.js';
 
   const id = page.params.id;
   let w = $state(null);
@@ -39,6 +39,16 @@
     let lock;
     navigator.wakeLock?.request('screen').then((l) => (lock = l)).catch(() => {});
     return () => { clearInterval(iv); lock?.release?.(); };
+  });
+
+  // Animationen aller Übungen des Trainings vorladen – Wechsel zur nächsten Übung ohne Wartezeit
+  const preloaded = new Set();
+  $effect(() => {
+    if (!mediaEnabled() || !showMedia) return;
+    for (const e of w?.exercises || []) {
+      const src = gifUrl(e.exercise?.media_id);
+      if (src && !preloaded.has(src)) { preloaded.add(src); const img = new Image(); img.decoding = 'async'; img.src = src; }
+    }
   });
 
   async function load() {
@@ -113,6 +123,18 @@
       prs = r.prs || [];
       if (prs.length) { success(); toast('Neuer Rekord! 🏆', 'success'); }
       goto(`/training/history/${id}`, { replaceState: true });
+    } catch (e) { toastError(e); }
+  }
+  async function discard() {
+    const n = (w.sets || []).filter((s) => s.completed).length;
+    const msg = n ? `Training abbrechen und ${n} erledigte${n === 1 ? 'n Satz' : ' Sätze'} verwerfen?` : 'Training abbrechen? Es wird nicht gespeichert.';
+    if (!confirm(msg)) return;
+    try {
+      await api.del(`/api/workouts/${id}`);
+      timer?.stop();
+      finishOpen = false;
+      toast('Training verworfen');
+      goto('/training', { replaceState: true });
     } catch (e) { toastError(e); }
   }
   const filtered = $derived(allExercises.filter((e) => e.name.toLowerCase().includes(search.toLowerCase())));
@@ -232,5 +254,6 @@
     </div>
     <textarea class="input mb-4" rows="3" placeholder="Notizen (optional)" bind:value={w.notes}></textarea>
     <button class="btn-primary w-full" onclick={finish}>Speichern & beenden</button>
+    <button class="btn-ghost mt-2 w-full text-danger!" onclick={discard}><Icon name="trash" size={18} /> Training abbrechen (nicht speichern)</button>
   {/if}
 </Sheet>

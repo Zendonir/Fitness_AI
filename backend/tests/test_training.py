@@ -119,7 +119,7 @@ async def test_exercise_media(make_user, anon_client):
     from app.services.bootstrap import seed_database
 
     cfg = (await anon_client.get("/api/auth/config")).json()
-    assert cfg["exercise_media_base"].startswith("https://cdn.jsdelivr.net/gh/JahelCuadrado/ExerciseGymGifsDB@")
+    assert cfg["exercise_media_base"] == "/api/media"
     c = await make_user()
     exs = (await c.get("/api/exercises")).json()
     bench = next(e for e in exs if e["slug"] == "bench_press")

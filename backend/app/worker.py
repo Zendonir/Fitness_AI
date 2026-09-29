@@ -131,6 +131,21 @@ async def cleanup_job(ctx: dict) -> None:
             a.status = "expired"
             db.add(a)
         await db.commit()
+    from app.services import media_cache
+
+    media_cache.prune()
+
+
+async def media_warm_job(ctx: dict) -> dict:
+    """Animationen aller verknüpften Übungen in den lokalen Cache laden."""
+    from app.models import Exercise
+    from app.services import media_cache
+
+    if not settings.exercise_media_proxy:
+        return {}
+    async with dbmod.session_scope() as db:
+        ids = list((await db.exec(select(Exercise.media_id).where(Exercise.media_id.is_not(None)).distinct())).all())
+    return await media_cache.warm(ids)
 
 
 async def bls_import_job(ctx: dict) -> dict:
@@ -150,10 +165,13 @@ async def startup(ctx: dict) -> None:
     if settings.bls_auto_import and not bls.get("count") and not bls.get("error"):
         await ctx["redis"].enqueue_job("bls_import_job", _job_id="bls-import", _defer_by=5)
         log.info("BLS-Import eingeplant")
+    # Übungsanimationen im Hintergrund vorladen (nur fehlende Dateien)
+    if settings.exercise_media_proxy:
+        await ctx["redis"].enqueue_job("media_warm_job", _job_id="media-warm", _defer_by=20)
 
 
 class WorkerSettings:
-    functions = [bls_import_job, timer_push_job, backup_job, daily_summaries_job, weekly_reports_job, hints_job, briefings_job]
+    functions = [bls_import_job, media_warm_job, timer_push_job, backup_job, daily_summaries_job, weekly_reports_job, hints_job, briefings_job]
     cron_jobs = [
         cron(briefings_job, minute=set(range(0, 60, 5)), run_at_startup=False),
         cron(daily_summaries_job, hour={2}, minute={30}),

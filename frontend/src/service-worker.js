@@ -7,7 +7,7 @@ const MEDIA = 'ff-media-v1';
 const MEDIA_MAX = 400;
 // Übungsanimationen (ExerciseGymGifsDB via CDN oder eigener Spiegel)
 const isMedia = (url) => /\.(gif|webp)$/i.test(url.pathname) &&
-  (url.pathname.includes('ExerciseGymGifsDB') || url.pathname.includes('/exercise-media/') || url.origin !== location.origin);
+  (url.pathname.startsWith('/api/media/') || url.pathname.includes('ExerciseGymGifsDB') || url.origin !== location.origin);
 const ASSETS = [...build, ...files.filter((f) => !f.endsWith('.DS_Store'))];
 // Lesende API-Antworten, die offline aus dem Cache kommen dürfen
 const API_CACHE = [/^\/api\/auth\/me$/, /^\/api\/stats\/today/, /^\/api\/meals/, /^\/api\/training\/today/, /^\/api\/exercises/,

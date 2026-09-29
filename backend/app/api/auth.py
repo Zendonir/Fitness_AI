@@ -132,7 +132,7 @@ async def auth_config(db: DB) -> dict[str, Any]:
         "oidc_name": settings.oidc_display_name,
         "ai_enabled": flags["ai_enabled"],
         "vapid_public_key": settings.vapid_public_key,
-        "exercise_media_base": settings.media_base,
+        "exercise_media_base": "/api/media" if settings.exercise_media_proxy else settings.media_base,
     }
 
 

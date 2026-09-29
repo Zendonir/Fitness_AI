@@ -524,6 +524,7 @@ async def patch_workout(wid: int, body: WorkoutPatch, user: CurrentUser, db: DB)
 @router.delete("/workouts/{wid}")
 async def delete_workout(wid: int, user: CurrentUser, db: DB) -> dict[str, bool]:
     w = await get_owned(db, Workout, wid, user.id)
+    await db.exec(delete(WorkoutSet).where(WorkoutSet.workout_id == w.id))  # type: ignore[call-overload]
     await db.delete(w)
     await db.commit()
     return {"ok": True}

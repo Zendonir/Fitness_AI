@@ -24,8 +24,8 @@ if [ "$(id -u)" = "0" ]; then
   fi
   if [ "$(id -g fitforge)" != "$PGID" ]; then groupmod -o -g "$PGID" fitforge; fi
   if [ "$(id -u fitforge)" != "$PUID" ]; then usermod -o -u "$PUID" fitforge; fi
-  mkdir -p "$DATA_DIR/uploads" "$DATA_DIR/backups"
-  chown fitforge:fitforge "$DATA_DIR" "$DATA_DIR/uploads" "$DATA_DIR/backups"
+  mkdir -p "$DATA_DIR/uploads" "$DATA_DIR/backups" "$DATA_DIR/media-cache"
+  chown fitforge:fitforge "$DATA_DIR" "$DATA_DIR/uploads" "$DATA_DIR/backups" "$DATA_DIR/media-cache"
   # Schlüssel als root lesen, dann als Umgebungsvariablen an den Nicht-Root-Prozess weitergeben
   if [ -d "$SECRETS_DIR" ]; then
     load_secret SECRET_KEY secret_key

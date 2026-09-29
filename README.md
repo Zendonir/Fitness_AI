@@ -69,7 +69,7 @@ Die App startet vier Container und einen einmaligen Init-Container für die Schl
 | `fitforge-postgres` | PostgreSQL 16 |
 | `fitforge-redis` | Redis 7 (Job-Queue) |
 
-Mit `docker-compose.yml` liegen alle Daten im Dataset `DATA_ROOT`, standardmäßig `/mnt/tank/apps/fitforge`, in den Unterordnern `secrets/`, `postgres/`, `redis/`, `uploads/` und `backups/`.
+Mit `docker-compose.yml` liegen alle Daten im Dataset `DATA_ROOT`, standardmäßig `/mnt/tank/apps/fitforge`, in den Unterordnern `secrets/`, `postgres/`, `redis/`, `uploads/`, `backups/` und `media-cache/` (Zwischenspeicher der Übungsanimationen, darf gelöscht werden).
 Die Ordner legt Docker automatisch an. Die TrueNAS-YAML nutzt stattdessen Docker-Volumes; bei Bedarf stellst du sie im Kommentar der Datei auf ein Dataset um.
 
 **Wichtig:** Sichere den Ordner bzw. das Volume `secrets`. Der `fernet_key` darin entschlüsselt gespeicherte API-Keys und 2FA-Secrets.
@@ -85,7 +85,7 @@ Getestet mit TrueNAS Scale ab 24.10 („Electric Eel“), der Apps auf Docker-Co
 1. **Storage → Pools → tank → Add Dataset:** `apps/fitforge` (Preset „Apps“).
 2. Unterordner anlegen, per Shell unter *System → Shell*:
    ```bash
-   mkdir -p /mnt/tank/apps/fitforge/{postgres,redis,uploads,backups}
+   mkdir -p /mnt/tank/apps/fitforge/{postgres,redis,uploads,backups,media-cache}
    chown -R 568:568 /mnt/tank/apps/fitforge/{uploads,backups}
    ```
    `568` ist der TrueNAS-Standardbenutzer `apps`. Er passt zu `PUID`/`PGID` in der `.env`.
@@ -398,9 +398,11 @@ Die App zeigt animierte GIFs aus [ExerciseGymGifsDB](https://github.com/JahelCua
 
 Die mitgelieferten Übungen sind bereits verknüpft (bis auf das Rudergerät, für das die Sammlung keine Animation hat); bestehende Installationen bekommen die Verknüpfung beim nächsten Start automatisch. Eigene Übungen verknüpfst du unter *Übung bearbeiten → Animation wählen*. Unter *Übungen → Bibliothek* kannst du eine Übung direkt aus der Sammlung übernehmen. Muskeln und Equipment werden dabei vorausgefüllt. Unter *Einstellungen → Übungsanimationen* schaltest du die Anzeige aus.
 
-**Lizenz:** Die GIFs gehören ihren jeweiligen Urhebern und sind **nicht** Teil dieses Repositorys oder des Docker-Images. Der Browser lädt sie direkt vom jsDelivr-CDN, und der Service Worker speichert angesehene Animationen für die Offline-Nutzung (max. 400 Dateien).
+**Lokaler Cache (Standard):** Der FitForge-Server lädt jede Animation einmal vom CDN und liefert sie danach selbst unter `/api/media/…` aus. Er speichert sie im Ordner `/data/media-cache` (Volume `media-cache`). Beim Start lädt der Worker die Animationen aller verknüpften Übungen im Hintergrund vor (ca. 25 MB), damit sie im Heimnetz ohne Wartezeit erscheinen. Der Browser cacht die Dateien zusätzlich dauerhaft, der Service Worker offline (max. 400 Dateien), und im Live-Workout werden die Animationen aller Übungen des Trainings vorgeladen. Der Cache ist temporär: Er wird nachts auf `MEDIA_CACHE_MAX_MB` (Standard 1024) gekürzt, wobei zuletzt benutzte Dateien bleiben, und darf jederzeit gelöscht werden. Mit `EXERCISE_MEDIA_PROXY=false` lädt der Browser die Animationen wieder direkt vom CDN.
 
-**Eigener Spiegel:** Wenn du das CDN nicht nutzen willst, klonst du das Repo (Tag `v1.2.0`), stellst es per Webserver bereit (mit CORS-Header `Access-Control-Allow-Origin: *` für die JSON-Dateien) und setzt `EXERCISE_MEDIA_BASE=https://dein-spiegel/pfad`. Die Pfade `<muskel>/<name>.gif`, `<muskel>/<name>.thumb.webp` und `api/en/muscles/<muskel>.json` müssen erhalten bleiben.
+**Lizenz:** Die GIFs gehören ihren jeweiligen Urhebern und sind **nicht** Teil dieses Repositorys oder des Docker-Images. Sie werden nur zur Laufzeit geladen und auf deinem Server zwischengespeichert.
+
+**Eigener Spiegel:** Wenn du das CDN nicht nutzen willst, klonst du das Repo (Tag `v1.2.0`), stellst es per Webserver bereit (mit CORS-Header `Access-Control-Allow-Origin: *` für die JSON-Dateien) und setzt `EXERCISE_MEDIA_BASE=https://dein-spiegel/pfad`; der Server-Cache lädt dann von dort. Die Pfade `<muskel>/<name>.gif`, `<muskel>/<name>.thumb.webp` und `api/en/muscles/<muskel>.json` müssen erhalten bleiben.
 
 ---
 

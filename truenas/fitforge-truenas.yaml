@@ -21,6 +21,7 @@ x-fitforge: &fitforge
     - secrets:/data/secrets
     - uploads:/data/uploads
     - backups:/data/backups
+    - media-cache:/data/media-cache
     # - /mnt/tank/apps/fitforge/secrets:/data/secrets
     # - /mnt/tank/apps/fitforge/uploads:/data/uploads
     # - /mnt/tank/apps/fitforge/backups:/data/backups
@@ -101,5 +102,6 @@ volumes:
   secrets:
   uploads:
   backups:
+  media-cache:
   postgres:
   redis:

@@ -71,11 +71,18 @@ class Settings(BaseSettings):
     bls_auto_import: bool = True
     # Übungsanimationen (ExerciseGymGifsDB). Leer = jsDelivr-CDN; eigener Spiegel möglich (gleiche Ordnerstruktur)
     exercise_media_base: str = ""
+    # Animationen über den FitForge-Server ausliefern und lokal zwischenspeichern (schneller im Heimnetz)
+    exercise_media_proxy: bool = True
+    media_cache_max_mb: int = 1024
     off_user_agent: str = "FitForge/1.0 (self-hosted)"
 
     @property
     def media_base(self) -> str:
         return (self.exercise_media_base or DEFAULT_MEDIA_BASE).rstrip("/")
+
+    @property
+    def media_cache_dir(self) -> Path:
+        return self.data_dir / "media-cache"
 
     @property
     def uploads_dir(self) -> Path:

@@ -34,6 +34,8 @@ x-app-env: &app-env
   OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-}
   BLS_AUTO_IMPORT: ${BLS_AUTO_IMPORT:-true}
   EXERCISE_MEDIA_BASE: ${EXERCISE_MEDIA_BASE:-}
+  EXERCISE_MEDIA_PROXY: ${EXERCISE_MEDIA_PROXY:-true}
+  MEDIA_CACHE_MAX_MB: ${MEDIA_CACHE_MAX_MB:-1024}
   BACKUP_HOUR: ${BACKUP_HOUR:-3}
   BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
   BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
@@ -60,6 +62,7 @@ services:
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/secrets:/data/secrets
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/uploads:/data/uploads
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/backups:/data/backups
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/media-cache:/data/media-cache
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -85,6 +88,7 @@ services:
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/secrets:/data/secrets
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/uploads:/data/uploads
       - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/backups:/data/backups
+      - ${DATA_ROOT:-/mnt/tank/apps/fitforge}/media-cache:/data/media-cache
     depends_on:
       app: { condition: service_healthy }
     networks:
